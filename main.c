@@ -1,29 +1,32 @@
 #include <stdio.h>
 
-enum Tokens {
+typedef enum {
 	// separators 
-	EOL = 0, // \n
-	SPACE, // discard on read
-	SEMICOLON,
-	FULL_STOP,
-	COMMA,
-	COLON,
-	L_SQ_BRACKET, // []
-	R_SQ_BRACKET,
-	L_CU_BRACKET, // {}
-	R_CU_BRACKET,
-	L_PN_BRACKET, // ()
-	R_PN_BRACKET,
-	QUOTE_SINGLE, // ''
-	QUOTE_DOUBLE, // ""
-	QUOTE_TICK, // ``
+	TOK_EOL = 0, // \n
+	TOK_SPACE, // discard on read
+	TOK_SEMICOLON,
+	TOK_FULL_STOP,
+	TOK_COMMA,
+	TOK_COLON,
+	TOK_L_SQ_BRACKET, // []
+	TOK_R_SQ_BRACKET,
+	TOK_L_CU_BRACKET, // {}
+	TOK_R_CU_BRACKET,
+	TOK_L_PN_BRACKET, // ()
+	TOK_R_PN_BRACKET,
+	TOK_QUOTE_SINGLE, // ''
+	TOK_QUOTE_DOUBLE, // ""
+	TOK_QUOTE_TICK, // ``
 
 	// LHS with RHS operators
 	TOK_ASSIGN, // =
 	TOK_RETURN, // return;	
 
 	// RHS with RHS operators
+	TOK_EEQ, // ===
 	TOK_EQ, // ==
+	TOK_NEEQ, // !==
+	TOK_NEQ, // !=
 	TOK_GT, // >
 	TOK_LT, // <
 	TOK_GE, // >=
@@ -112,14 +115,148 @@ enum Tokens {
 	TOK_IMPORT,	
 	TOK_PACKAGE,
 	TOK_EXPORT,
-};
+} Token;
 
-struct TokenConverion {
+typedef struct {
 	char* match;
-	enum Tokens token;
+	Token token;
+} TokenConversion;
+
+// all separators except '\n' and ' ' are kept in place
+// precedence set by array ordering
+char *syntaxUnitsSeparators[] = {
+	"\n",
+	" ", 
+	";", 
+	"===",
+	"!==",
+	"**=",
+	"==",
+	"!=",
+	">=",
+	"<=",
+	"&&",
+	"||",
+	"++",
+	"--",
+	"**",
+	"+=",
+	"-=",
+	"*=",
+	"/=",
+	"%=",
+	".", 
+	",", 
+	":", 
+	"[", 
+	"]", 
+	"{", 
+	"}", 
+	"(", 
+	")", 
+	"=", 
+	">", 
+	"<", 
+	"+", 
+	"-", 
+	"*", 
+	"/", 
+	"%", 
+	"!", 
+	// explicit string are to be detected, templates are to be evaluated separately
+	// "'", 
+	// "\"",
+	// "`", 
 };
 
-enum Command {
+// todo: convert to hashmap, or use any other O(1) acc. method
+TokenConversion tokenConversions[] = {
+	{"\n", TOK_EOL}, 
+	{" ", TOK_SPACE},
+	{";", TOK_SEMICOLON},
+	{".", TOK_FULL_STOP},
+	{",", TOK_COMMA},
+	{":", TOK_COLON},
+	{"[", TOK_L_SQ_BRACKET},
+	{"]", TOK_R_SQ_BRACKET},
+	{"{", TOK_L_CU_BRACKET},
+	{"}", TOK_R_CU_BRACKET},
+	{"(", TOK_L_PN_BRACKET},
+	{")", TOK_R_PN_BRACKET},
+	{"'", TOK_QUOTE_SINGLE},
+	{"\"", TOK_QUOTE_DOUBLE},
+	{"`", TOK_QUOTE_TICK},
+	{"=", TOK_ASSIGN},
+	{"return", TOK_RETURN},
+	{"==", TOK_EQ},
+	{">", TOK_GT},
+	{"<", TOK_LT},
+	{">=", TOK_GE},
+	{"<=", TOK_LE},
+	{"&&", TOK_AND},
+	{"||", TOK_OR},
+	{"+", TOK_ADD},
+	{"-", TOK_SUB},
+	{"*", TOK_MULT},
+	{"/", TOK_DIV},
+	{"**", TOK_EXP},
+	{"%", TOK_MOD},
+	{"true", TOK_TRUE}, 	
+	{"false", TOK_FALSE},
+	{"null", TOK_NULL},
+	{"undefined", TOK_UNDEFINED},
+	{"!", TOK_NEGATION},
+	{"++", TOK_INC},
+	{"--", TOK_DEC},
+	{"do", TOK_DO}, 
+	{"for", TOK_FOR},
+	{"while", TOK_WHILE},
+	{"continue", TOK_CONTINUE}, 
+	{"break", TOK_BREAK}, 
+	{"in", TOK_IN}, 	
+	{"of", TOK_OF},
+	{"if", TOK_IF},
+	{"else", TOK_ELSE}, 
+	{"case", TOK_CASE}, 
+	{"switch", TOK_SWITCH}, 	
+	{"class", TOK_CLASS},
+	{"new", TOK_NEW}, 	
+	{"delete", TOK_DELETE}, 
+	{"default", TOK_DEFAULT}, 
+	{"final", TOK_FINAL}, 
+	{"this", TOK_THIS},
+	{"extends", TOK_EXTENDS},	
+	{"super", TOK_SUPER},
+	{"protected", TOK_PROTECTED}, 
+	{"implements", TOK_IMPLEMENTS},	
+	{"public", TOK_PUBLIC}, 	
+	{"static", TOK_STATIC},
+	{"private", TOK_PRIVATE}, 	
+	{"interface", TOK_INTERFACE}, 	
+	{"instanceof", TOK_INSTANCEOF},
+	{"catch", TOK_CATCH}, 
+	{"finally", TOK_FINALLY}, 
+	{"throws", TOK_THROWS}, 	
+	{"try", TOK_TRY}, 	
+	{"throw", TOK_THROW},
+	{"typeof", TOK_TYPEOF},
+	{"void", TOK_VOID},
+	{"const", TOK_CONST}, 
+	{"function", TOK_FUNCTION},
+	{"enum", TOK_ENUM},	
+	{"var", TOK_VAR},
+	{"let", TOK_LET}, 	
+	{"await", TOK_AWAIT}, 	
+	{"yield", TOK_YIELD},
+	{"eval", TOK_EVAL},
+	{"debugger", TOK_DEBUGGER}, 	
+	{"with", TOK_WITH},
+	{"import", TOK_IMPORT},	
+	{"package", TOK_PACKAGE},
+	{"export", TOK_EXPORT}
+};
+
+typedef enum {
 	ASSIGN = 0,
 	CALL, 
 	GET,
@@ -128,22 +265,22 @@ enum Command {
 	SUB,
 	MULT,
 	DIV,
-};
+} Command;
 
 // Rulesets for given command
 // - token matches
 // - resulting Command
-struct CommandRuleset {
+typedef struct {
 	
-};
+} CommandRuleset;
 
 // each AST node has a precedence index, a parent, 
 // - LHS (parent), RHS list,
-struct SyntaxNode {
-	enum Command command;
+typedef struct {
+	Command command;
 	struct SyntaxNode *lhs; // single parent
 	struct SyntaxNode *rhs; // list of children
-};
+} SyntaxNode;
 
 // Game plan:
 // - Convert raw text to easily interpretable transitory form.
