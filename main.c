@@ -4,7 +4,8 @@
 
 typedef enum {
 	// internal util, do not treat as token
-	TOK_LITERAL = 0,
+	TOK_BLANK = 0,
+	TOK_LITERAL,
 
 	// separators 
 	TOK_EOL, // \n
@@ -130,7 +131,7 @@ typedef struct {
 // all separators except '\n' and ' ' are kept in place
 // precedence set by array ordering
 char *syntaxUnitsSeparators[] = {
-	"\n",
+	// "\n", redundant to existing logic
 	" ", 
 	";", 
 	"===",
@@ -194,6 +195,8 @@ TokenConversion tokenConversions[] = {
 	{"=", TOK_ASSIGN},
 	{"return", TOK_RETURN},
 	{"==", TOK_EQ},
+	{"===", TOK_EEQ},
+	{"!==", TOK_NEEQ},
 	{">", TOK_GT},
 	{"<", TOK_LT},
 	{">=", TOK_GE},
@@ -305,6 +308,22 @@ typedef struct {
 // - 2. Convert TSX apps to binaries + minimal TS. 
 
 Token strToToken(char *str) {
+	if (strcmp(str, "") == 0) {
+		return TOK_BLANK;
+	}
+	
+	static size_t convArraySize = sizeof(tokenConversions)/sizeof(tokenConversions[0]);
+	
+	for (int i = 0; i < convArraySize; i++) {
+		if (strcmp(str, tokenConversions[i].match) == 0) {
+			return tokenConversions[i].token;
+		}
+	}
+
+	// todo: return literal as string in union with token
+	//    	 alternatively - add it to a new runtime token, store globally, access later
+	// note: we have to attach metadata to literals - their type, ...?
+	// note: "literal" in this context could also be a LHS key, it's anything but a keyword 
 	return TOK_LITERAL;
 }
 
@@ -313,33 +332,43 @@ Token* extractFirstTokens(char **str) {
 	// returned tokens are removed from str by shifting str ptr by returned tokens' length
 	Token *tokens = (Token *) malloc(sizeof(Token) * 2);
 	
-	size_t matchArrLen = 10;
+	static size_t matchArrSize = sizeof(syntaxUnitsSeparators)/sizeof(syntaxUnitsSeparators[0]);
 
-	for (size_t i = 0; i < matchArrLen; i++) {
+	size_t spanToClosestSep = strlen(*str) - 1;
+	char* closestSepString = "\n";
+
+	for (size_t i = 0; i < matchArrSize; i++) {
 		char *separator = syntaxUnitsSeparators[i];
 
-
-		char* found = strstr(*str, separator);
+		// fixme: we cannot just lookup seps, we have to find the first one
+		char* foundSep = strstr(*str, separator);
 		
-		if (!found) {
+		if (foundSep == NULL) {
 			continue;		
 		}
 
-		size_t tokLen = found - *str; 
+		size_t nToSep = foundSep - *str;
 
-		char tokenBuf[256];
-		strncpy(tokenBuf, *str, tokLen);
-	
-		tokens[0] = strToToken(tokenBuf);
-		tokens[1] = strToToken(separator);
+		if (nToSep >= spanToClosestSep) {
+			// only keeping the closest separator
+			continue;
+		}
 
-		// remove from input
-		*str += strlen(found) + strlen(separator);
-
-		break;
+		spanToClosestSep = nToSep;
+		closestSepString = separator;
 	}
-
 	
+	char tokenBuf[spanToClosestSep + 1];
+	strncpy(tokenBuf, *str, spanToClosestSep);
+	tokenBuf[spanToClosestSep] = '\0';
+
+	tokens[0] = strToToken(tokenBuf);
+	tokens[1] = strToToken(closestSepString);
+	
+	printf("Str '%s' sep '%s'\n", tokenBuf, closestSepString);
+
+	// remove from input
+	*str += spanToClosestSep + strlen(closestSepString);
 
 	return tokens;
 }
@@ -374,13 +403,13 @@ int main(int argc, char **argv) {
 
 		while (*line != '\0') {
 			Token *newToks = extractFirstTokens(&line);
-		
-			tokens[tokensHead++] = newToks[0];
-			fprintf(stderr, "Token serialization: command: %u\n", newToks[0]);
+	
+			if (newToks[0] != TOK_BLANK) {
+				tokens[tokensHead++] = newToks[0];
+			}
 
 			if (newToks[1] != TOK_SPACE) {
 				tokens[tokensHead++] = newToks[1];
-				fprintf(stderr, "Token serialization: separator: %u\n", newToks[1]);
 			}
 
 			free(newToks);
