@@ -1,8 +1,13 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 typedef enum {
+	// internal util, do not treat as token
+	TOK_LITERAL = 0,
+
 	// separators 
-	TOK_EOL = 0, // \n
+	TOK_EOL, // \n
 	TOK_SPACE, // discard on read
 	TOK_SEMICOLON,
 	TOK_FULL_STOP,
@@ -256,6 +261,12 @@ TokenConversion tokenConversions[] = {
 	{"export", TOK_EXPORT}
 };
 
+Token stringLiteralsTokens[] = {
+	TOK_QUOTE_SINGLE,
+	TOK_QUOTE_DOUBLE,
+	TOK_QUOTE_TICK
+};
+
 typedef enum {
 	ASSIGN = 0,
 	CALL, 
@@ -293,6 +304,47 @@ typedef struct {
 // - 1. Compile JS to executable binaries.
 // - 2. Convert TSX apps to binaries + minimal TS. 
 
+Token strToToken(char *str) {
+	return TOK_LITERAL;
+}
+
+Token* extractFirstTokens(char **str) {
+	// returning first two tokens - an expression and separator or newline token if no separator is present
+	// returned tokens are removed from str by shifting str ptr by returned tokens' length
+	Token *tokens = (Token *) malloc(sizeof(Token) * 2);
+	
+	size_t matchArrLen = 10;
+
+	for (size_t i = 0; i < matchArrLen; i++) {
+		char *separator = syntaxUnitsSeparators[i];
+
+
+		char* found = strstr(*str, separator);
+		
+		if (!found) {
+			continue;		
+		}
+
+		size_t tokLen = found - *str; 
+
+		char tokenBuf[256];
+		strncpy(tokenBuf, *str, tokLen);
+	
+		tokens[0] = strToToken(tokenBuf);
+		tokens[1] = strToToken(separator);
+
+		// remove from input
+		*str += strlen(found) + strlen(separator);
+
+		break;
+	}
+
+	
+
+	return tokens;
+}
+
+
 int main(int argc, char **argv) {
 	if (argc == 1) {
 		printf("You have to provide entrypoint filename. Terminating.\n");
@@ -303,11 +355,54 @@ int main(int argc, char **argv) {
 	char *line = NULL;
 	size_t len = 0;
 	ssize_t nread;
-	
+
+	size_t tokensHead = 0;
+	size_t tokensSize = 1024;
+	Token *tokens = malloc(sizeof(Token) * tokensSize);
+
+	if (tokens == NULL) {
+    perror("Token serialization: malloc failed. Aborting");
+    exit(1);
+ 	}
+
+	printf("Token serialization: allocating %zu\n", tokensSize);		
+
 	while ((nread = getline(&line, &len, file)) != -1) {
-		printf("%s", line);
+		printf("Token serialization: line: %s", line);
+
+		// ptr copy allows slicing off extracted tokens
+
+		while (*line != '\0') {
+			Token *newToks = extractFirstTokens(&line);
+		
+			tokens[tokensHead++] = newToks[0];
+			fprintf(stderr, "Token serialization: command: %u\n", newToks[0]);
+
+			if (newToks[1] != TOK_SPACE) {
+				tokens[tokensHead++] = newToks[1];
+				fprintf(stderr, "Token serialization: separator: %u\n", newToks[1]);
+			}
+
+			free(newToks);
+
+			if (newToks[1] == TOK_EOL) {
+				break;
+			}
+
+			if (tokensHead >= tokensSize - 2) {
+				printf("Token serialization: contains %zu, reallocating %zu -> %zu\n", tokensHead, tokensSize, tokensSize * 2);		
+				tokensSize *= 2;
+				tokens = reallocarray(tokens, tokensHead, tokensSize);
+	
+				if (tokens == NULL) {
+					perror("Token serialization: reallocarray failed. Aborting");
+					exit(1);
+				}
+			}
+		};
 	}
 
+	free(tokens);
 	
 	fclose(file);
 	return 0;
