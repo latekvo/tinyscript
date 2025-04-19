@@ -109,8 +109,6 @@ Token* extractFirstTokens(char **str) {
 	tokens[0] = strToToken(tokenBuf);
 	tokens[1] = strToToken(closestSepString);
 	
-	printf("Str '%s' sep '%s'\n", tokenBuf, closestSepString);
-
 	// remove from input
 	*str += spanToClosestSep + strlen(closestSepString);
 
@@ -141,12 +139,11 @@ int main(int argc, char **argv) {
 	printf("Token serialization: allocating %zu\n", tokensSize);		
 
 	while ((nread = getline(&line, &len, file)) != -1) {
-		printf("Token serialization: line: %s", line);
-
 		// ptr copy allows slicing off extracted tokens
+		char *linePtr = line;	
 
-		while (*line != '\0') {
-			Token *newToks = extractFirstTokens(&line);
+		while (*linePtr != '\0') {
+			Token *newToks = extractFirstTokens(&linePtr);
 	
 			if (newToks[0] != TOK_BLANK) {
 				tokens[tokensHead++] = newToks[0];
@@ -156,11 +153,12 @@ int main(int argc, char **argv) {
 				tokens[tokensHead++] = newToks[1];
 			}
 
-			free(newToks);
-
 			if (newToks[1] == TOK_EOL) {
+				free(newToks);
 				break;
 			}
+			
+			free(newToks);
 
 			if (tokensHead >= tokensSize - 2) {
 				printf("Token serialization: contains %zu, reallocating %zu -> %zu\n", tokensHead, tokensSize, tokensSize * 2);		
@@ -169,14 +167,25 @@ int main(int argc, char **argv) {
 	
 				if (tokens == NULL) {
 					perror("Token serialization: reallocarray failed. Aborting");
+					free(line);
 					exit(1);
 				}
 			}
 		};
+
 	}
 
+	free(line);
 	free(tokens);
+
+	// cleanup tokens
 	
+	// convert tokens to flat AST
+
+	// beta-reduce AST - temporarily omitted
+	
+	// convert AST to C
+
 	fclose(file);
 	return 0;
 }

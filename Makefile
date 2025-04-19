@@ -3,6 +3,8 @@ SOURCE_DIR=src/
 TARGET=tinyscript
 CC=gcc
 CFLAGS=-g
+MEMCHECK_CMD=valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose --log-file=valgrind-out.txt
+
 
 OBJECTS=$(subst $(SOURCE_DIR),$(BUILD_DIR),$(subst .c,.o,$(wildcard $(SOURCE_DIR)*.c)))
 
@@ -24,3 +26,5 @@ test: $(TARGET)
 	# temporary testing solution, will add more robust testing in future
 	./$(TARGET) test_files/simple.js  
 
+memcheck: $(TARGET)
+	$(MEMCHECK_CMD) ./$(TARGET) test_files/simple.js 

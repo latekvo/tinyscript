@@ -1,3 +1,5 @@
 tinyscript
 
 *.o
+
+valgrind-out.txt
