@@ -1,268 +1,16 @@
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 
-typedef enum {
-	// internal util, do not treat as token
-	TOK_BLANK = 0,
-	TOK_LITERAL,
-
-	// separators 
-	TOK_EOL, // \n
-	TOK_SPACE, // discard on read
-	TOK_SEMICOLON,
-	TOK_FULL_STOP,
-	TOK_COMMA,
-	TOK_COLON,
-	TOK_L_SQ_BRACKET, // []
-	TOK_R_SQ_BRACKET,
-	TOK_L_CU_BRACKET, // {}
-	TOK_R_CU_BRACKET,
-	TOK_L_PN_BRACKET, // ()
-	TOK_R_PN_BRACKET,
-	TOK_QUOTE_SINGLE, // ''
-	TOK_QUOTE_DOUBLE, // ""
-	TOK_QUOTE_TICK, // ``
-
-	// LHS with RHS operators
-	TOK_ASSIGN, // =
-	TOK_RETURN, // return;	
-
-	// RHS with RHS operators
-	TOK_EEQ, // ===
-	TOK_EQ, // ==
-	TOK_NEEQ, // !==
-	TOK_NEQ, // !=
-	TOK_GT, // >
-	TOK_LT, // <
-	TOK_GE, // >=
-	TOK_LE, // <=
-	TOK_AND, // &&
-	TOK_OR, // ||
-	TOK_ADD, // +
-	TOK_SUB, // -
-	TOK_MULT, // *
-	TOK_DIV, // /
-	TOK_EXP, // **
-	TOK_MOD, // %
-
-	// RHS values
-	TOK_TRUE, 	
-	TOK_FALSE,
-	TOK_NULL,
-	TOK_UNDEFINED,
-
-	// RHS modifiers
-	TOK_NEGATION, // !
-	TOK_INC, // ++
-	TOK_DEC, // --
-
-
-	// loops
-	TOK_DO, 
-	TOK_FOR,
-	TOK_WHILE,
-	TOK_CONTINUE, 
-	TOK_BREAK, 
-	TOK_IN, 	
-	TOK_OF,
-
-	// conditionals
-	TOK_IF,
-	TOK_ELSE, 
-	TOK_CASE, 
-	TOK_SWITCH, 	
-
-	// classes - unplanned
-	TOK_CLASS,
-	TOK_NEW, 	
-	TOK_DELETE, 
-	TOK_DEFAULT, 
-	TOK_FINAL, 
-	TOK_THIS,
-	TOK_EXTENDS,	
-	TOK_SUPER,
-	TOK_PROTECTED, 	
-	TOK_IMPLEMENTS, 	
-	TOK_PUBLIC, 	
-	TOK_STATIC,
-	TOK_PRIVATE, 	
-	TOK_INTERFACE, 	
-	TOK_INSTANCEOF,
-
-	// error handling - unplanned
-	TOK_CATCH, 
-	TOK_FINALLY, 
-	TOK_THROWS, 	
-	TOK_TRY, 	
-	TOK_THROW,
-
-	// types - unplanned
-	TOK_TYPEOF,
-	TOK_VOID,
-
-	// definition keywords
-	TOK_CONST, 
-	TOK_FUNCTION,
-	TOK_ENUM,	
-	TOK_VAR,
-	TOK_LET, 	
-
-	// async - unplanned
-	TOK_AWAIT, 	
-	TOK_YIELD,
-
-	// utilities - unplanned
-	TOK_EVAL,
-	TOK_DEBUGGER, 	
-	TOK_WITH,
-	
-	// linking - unplanned
-	TOK_IMPORT,	
-	TOK_PACKAGE,
-	TOK_EXPORT,
-} Token;
-
-typedef struct {
-	char* match;
-	Token token;
-} TokenConversion;
+#include "tokens.h"
+#include "separators.h"
+#include "conversions.h"
 
 // all separators except '\n' and ' ' are kept in place
 // precedence set by array ordering
-char *syntaxUnitsSeparators[] = {
-	// "\n", redundant to existing logic
-	" ", 
-	";", 
-	"===",
-	"!==",
-	"**=",
-	"==",
-	"!=",
-	">=",
-	"<=",
-	"&&",
-	"||",
-	"++",
-	"--",
-	"**",
-	"+=",
-	"-=",
-	"*=",
-	"/=",
-	"%=",
-	".", 
-	",", 
-	":", 
-	"[", 
-	"]", 
-	"{", 
-	"}", 
-	"(", 
-	")", 
-	"=", 
-	">", 
-	"<", 
-	"+", 
-	"-", 
-	"*", 
-	"/", 
-	"%", 
-	"!", 
-	// explicit string are to be detected, templates are to be evaluated separately
-	// "'", 
-	// "\"",
-	// "`", 
-};
-
-// todo: convert to hashmap, or use any other O(1) acc. method
-TokenConversion tokenConversions[] = {
-	{"\n", TOK_EOL}, 
-	{" ", TOK_SPACE},
-	{";", TOK_SEMICOLON},
-	{".", TOK_FULL_STOP},
-	{",", TOK_COMMA},
-	{":", TOK_COLON},
-	{"[", TOK_L_SQ_BRACKET},
-	{"]", TOK_R_SQ_BRACKET},
-	{"{", TOK_L_CU_BRACKET},
-	{"}", TOK_R_CU_BRACKET},
-	{"(", TOK_L_PN_BRACKET},
-	{")", TOK_R_PN_BRACKET},
-	{"'", TOK_QUOTE_SINGLE},
-	{"\"", TOK_QUOTE_DOUBLE},
-	{"`", TOK_QUOTE_TICK},
-	{"=", TOK_ASSIGN},
-	{"return", TOK_RETURN},
-	{"==", TOK_EQ},
-	{"===", TOK_EEQ},
-	{"!==", TOK_NEEQ},
-	{">", TOK_GT},
-	{"<", TOK_LT},
-	{">=", TOK_GE},
-	{"<=", TOK_LE},
-	{"&&", TOK_AND},
-	{"||", TOK_OR},
-	{"+", TOK_ADD},
-	{"-", TOK_SUB},
-	{"*", TOK_MULT},
-	{"/", TOK_DIV},
-	{"**", TOK_EXP},
-	{"%", TOK_MOD},
-	{"true", TOK_TRUE}, 	
-	{"false", TOK_FALSE},
-	{"null", TOK_NULL},
-	{"undefined", TOK_UNDEFINED},
-	{"!", TOK_NEGATION},
-	{"++", TOK_INC},
-	{"--", TOK_DEC},
-	{"do", TOK_DO}, 
-	{"for", TOK_FOR},
-	{"while", TOK_WHILE},
-	{"continue", TOK_CONTINUE}, 
-	{"break", TOK_BREAK}, 
-	{"in", TOK_IN}, 	
-	{"of", TOK_OF},
-	{"if", TOK_IF},
-	{"else", TOK_ELSE}, 
-	{"case", TOK_CASE}, 
-	{"switch", TOK_SWITCH}, 	
-	{"class", TOK_CLASS},
-	{"new", TOK_NEW}, 	
-	{"delete", TOK_DELETE}, 
-	{"default", TOK_DEFAULT}, 
-	{"final", TOK_FINAL}, 
-	{"this", TOK_THIS},
-	{"extends", TOK_EXTENDS},	
-	{"super", TOK_SUPER},
-	{"protected", TOK_PROTECTED}, 
-	{"implements", TOK_IMPLEMENTS},	
-	{"public", TOK_PUBLIC}, 	
-	{"static", TOK_STATIC},
-	{"private", TOK_PRIVATE}, 	
-	{"interface", TOK_INTERFACE}, 	
-	{"instanceof", TOK_INSTANCEOF},
-	{"catch", TOK_CATCH}, 
-	{"finally", TOK_FINALLY}, 
-	{"throws", TOK_THROWS}, 	
-	{"try", TOK_TRY}, 	
-	{"throw", TOK_THROW},
-	{"typeof", TOK_TYPEOF},
-	{"void", TOK_VOID},
-	{"const", TOK_CONST}, 
-	{"function", TOK_FUNCTION},
-	{"enum", TOK_ENUM},	
-	{"var", TOK_VAR},
-	{"let", TOK_LET}, 	
-	{"await", TOK_AWAIT}, 	
-	{"yield", TOK_YIELD},
-	{"eval", TOK_EVAL},
-	{"debugger", TOK_DEBUGGER}, 	
-	{"with", TOK_WITH},
-	{"import", TOK_IMPORT},	
-	{"package", TOK_PACKAGE},
-	{"export", TOK_EXPORT}
-};
 
 Token stringLiteralsTokens[] = {
 	TOK_QUOTE_SINGLE,
@@ -312,9 +60,7 @@ Token strToToken(char *str) {
 		return TOK_BLANK;
 	}
 	
-	static size_t convArraySize = sizeof(tokenConversions)/sizeof(tokenConversions[0]);
-	
-	for (int i = 0; i < convArraySize; i++) {
+	for (int i = 0; i < tokenConversionsCount; i++) {
 		if (strcmp(str, tokenConversions[i].match) == 0) {
 			return tokenConversions[i].token;
 		}
@@ -330,14 +76,12 @@ Token strToToken(char *str) {
 Token* extractFirstTokens(char **str) {
 	// returning first two tokens - an expression and separator or newline token if no separator is present
 	// returned tokens are removed from str by shifting str ptr by returned tokens' length
-	Token *tokens = (Token *) malloc(sizeof(Token) * 2);
+	Token *tokens = malloc(sizeof(Token) * 2);
 	
-	static size_t matchArrSize = sizeof(syntaxUnitsSeparators)/sizeof(syntaxUnitsSeparators[0]);
-
 	size_t spanToClosestSep = strlen(*str) - 1;
 	char* closestSepString = "\n";
 
-	for (size_t i = 0; i < matchArrSize; i++) {
+	for (size_t i = 0; i < syntaxUnitsSeparatorsCount; i++) {
 		char *separator = syntaxUnitsSeparators[i];
 
 		// fixme: we cannot just lookup seps, we have to find the first one
