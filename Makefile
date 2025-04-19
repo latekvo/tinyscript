@@ -1,22 +1,26 @@
 BUILD_DIR=build/
 SOURCE_DIR=src/
+TARGET=tinyscript
+CC=gcc
+CFLAGS=-g
 
-default: tinyscript
-.PHONY: clean run
+OBJECTS=$(subst $(SOURCE_DIR),$(BUILD_DIR),$(subst .c,.o,$(wildcard $(SOURCE_DIR)*.c)))
 
-tinyscript: build/main.o build/conversions.o build/separators.o
-	gcc -g -o tinyscript $^ 
+default: $(TARGET) 
+.PHONY: clean test 
 
-build:
-	mkdir $(BUILD_DIR)
+$(TARGET): $(OBJECTS) 
+	gcc $(CFLAGS) -o $@ $^ 
 
-build/%.o: build
-	gcc -g -c -o $@ $(subst $(BUILD_DIR),$(SOURCE_DIR),$(subst .o,.c,$@))
+$(BUILD_DIR)%.o: $(SOURCE_DIR)$(subst .o,.c,$(notdir $@))
+	mkdir -p $(BUILD_DIR)
+	gcc $(CFLAGS) -c -o $@ $(SOURCE_DIR)$(notdir $(subst .o,.c,$@))
 
 
 clean:
-	rm -r $(BUILD_DIR) tinyscript
+	rm -r $(BUILD_DIR) $(TARGET)
 
-run: tinyscript
-	./tinyscript test_files/simple.js
-	make clean
+test: $(TARGET)
+	# temporary testing solution, will add more robust testing in future
+	./$(TARGET) test_files/simple.js  
+
