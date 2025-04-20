@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "conversions.h"
 
 TokenConversion tokenConversions[] = {
@@ -90,3 +92,20 @@ TokenConversion tokenConversions[] = {
 
 size_t tokenConversionsCount = sizeof(tokenConversions)/sizeof(tokenConversions[0]);
 
+Token strToToken(char *str) {
+	if (strcmp(str, "") == 0) {
+		return TOK_BLANK;
+	}
+	
+	for (int i = 0; i < tokenConversionsCount; i++) {
+		if (strcmp(str, tokenConversions[i].match) == 0) {
+			return tokenConversions[i].token;
+		}
+	}
+
+	// todo: return literal as string in union with token
+	//    	 alternatively - add it to a new runtime token, store globally, access later
+	// note: we have to attach metadata to literals - their type, ...?
+	// note: "literal" in this context could also be a LHS key, it's anything but a keyword 
+	return TOK_LITERAL;
+}

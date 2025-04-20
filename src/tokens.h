@@ -102,7 +102,7 @@ typedef enum {
 	// definition keywords
 	TOK_CONST, 
 	TOK_FUNCTION,
-	TOK_ENUM,	
+	TOK_ENUM,
 	TOK_VAR,
 	TOK_LET, 	
 

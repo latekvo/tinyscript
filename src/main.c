@@ -8,6 +8,7 @@
 #include "tokens.h"
 #include "separators.h"
 #include "conversions.h"
+#include "debugging.h"
 
 // all separators except '\n' and ' ' are kept in place
 // precedence set by array ordering
@@ -19,7 +20,8 @@ Token stringLiteralsTokens[] = {
 };
 
 typedef enum {
-	ASSIGN = 0,
+	LITERAL_REF = 0,
+	ASSIGN,
 	CALL, 
 	GET,
 	SET,
@@ -33,45 +35,44 @@ typedef enum {
 // - token matches
 // - resulting Command
 typedef struct {
-	
+	Command command;
+
 } CommandRuleset;
 
-// each AST node has a precedence index, a parent, 
-// - LHS (parent), RHS list,
+
+typedef enum {
+	RHS_TYPE_SYNTAX_NODE = 0,
+	RHS_TYPE_LITERAL_REF,
+} RHSType;
+
+/// SyntaxNode structure - temporary thought block
+// in the transpiling process, do we have to reverse the tree?
+// after beta reduction, we definietely have to eval children before parents
+// but then commands are structured PARENT(CHILDREN) or PARENT = CHILDREN
+// so the most trivial approach would be to create vars for each child recursively
+///
+// in the token -> AST process, how do we build it?
+// do we first create leafs, then mount them onto LHS, or the other way around?
+// After determining command, it's the simplest to start with parents.
+// And travel outward-to-inward, if we encounter nesting, start a separate rhs node.
+// Most commands operations on foo given args, simple lhs + rhs children doesn't show that.
+// Could either treat rhs[0] as the target, or could have: 
+// { SyntaxNode scope, literal_ref target, and SyntaxNode *args } 
+// no, that overcomplicates matters in practice, as the target may be RHS in most cases,
+// especially in JS - think array member assignment, nested math.
+///
+
 typedef struct {
 	Command command;
-	struct SyntaxNode *lhs; // single parent
-	struct SyntaxNode *rhs; // list of children
+	struct SyntaxNode *lhs; // parent
+	union { // args to `command`, children
+		RHSType rhs_type;
+		struct SyntaxNode *rhs_node;
+		size_t rhs_literal_ref;
+	} *rhs;
 } SyntaxNode;
 
-// Game plan:
-// - Convert raw text to easily interpretable transitory form.
-// 	 I plan to remove this step once it's determined unnecessary/slow.
-// - Convert the transitory form into semi-flat AST.
-// - Beta-reduce AST.
-// - Transpile to C for now, compile to opcodes in future.
-// - Figure out entry points, hooking up to JSI could work.
-// End goal:
-// - 1. Compile JS to executable binaries.
-// - 2. Convert TSX apps to binaries + minimal TS. 
 
-Token strToToken(char *str) {
-	if (strcmp(str, "") == 0) {
-		return TOK_BLANK;
-	}
-	
-	for (int i = 0; i < tokenConversionsCount; i++) {
-		if (strcmp(str, tokenConversions[i].match) == 0) {
-			return tokenConversions[i].token;
-		}
-	}
-
-	// todo: return literal as string in union with token
-	//    	 alternatively - add it to a new runtime token, store globally, access later
-	// note: we have to attach metadata to literals - their type, ...?
-	// note: "literal" in this context could also be a LHS key, it's anything but a keyword 
-	return TOK_LITERAL;
-}
 
 Token* extractFirstTokens(char **str) {
 	// returning first two tokens - an expression and separator or newline token if no separator is present
@@ -115,6 +116,11 @@ Token* extractFirstTokens(char **str) {
 	return tokens;
 }
 
+// - Transpile to C for now, compile to opcodes in future.
+// - Figure out entry points, hooking up to JSI could work.
+// End goal:
+// - 1. Compile JS to executable binaries.
+// - 2. Convert TSX apps to binaries + minimal TS. 
 
 int main(int argc, char **argv) {
 	if (argc == 1) {
@@ -130,6 +136,9 @@ int main(int argc, char **argv) {
 	size_t tokensHead = 0;
 	size_t tokensSize = 1024;
 	Token *tokens = malloc(sizeof(Token) * tokensSize);
+
+	char **literals; 
+	size_t literalsHead[0];
 
 	if (tokens == NULL) {
     perror("Token serialization: malloc failed. Aborting");
@@ -172,15 +181,36 @@ int main(int argc, char **argv) {
 				}
 			}
 		};
-
 	}
 
 	free(line);
-	free(tokens);
 
-	// cleanup tokens
-	
-	// convert tokens to flat AST
+	// cleanup tokens - overwriting the existing mempool
+	size_t updatedTokensHead = 0;
+
+	for (int wHead=0; wHead < tokensHead; wHead++) {
+		// skip unwanted tokens 
+		// note: could optimize	by ANDing a bitmask
+		// note: could optimize by moving logic to token extraction
+		printf("Token cleanup: \"%s\", (%u)\n", tokenToText(tokens[wHead]), tokens[wHead]);
+		updatedTokensHead = wHead + 1;
+	}
+
+	// convert tokens to commands
+	for (int i = 0; i < updatedTokensHead; i++) {
+		// todo: implement ruleset filtration & detection, will allow for clear statement definitions
+		// tokens[i];
+	}
+
+	// convert commands to flat AST
+
+	// fixme: multiline statements not supported yet
+	// fixme: semicolon is required for now (although lack of \n support temp. fixes this)
+	for (int i = 0; i < tokensHead; i++) {
+		
+	}
+
+	free(tokens);
 
 	// beta-reduce AST - temporarily omitted
 	
