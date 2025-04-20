@@ -2,5 +2,5 @@
 
 #include <sys/types.h>
 
-extern char* syntaxUnitsSeparators[];
+extern char *syntaxUnitsSeparators[];
 extern size_t syntaxUnitsSeparatorsCount;

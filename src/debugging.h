@@ -2,4 +2,4 @@
 
 #include "tokens.h"
 
-char* tokenToText(Token token);
+char *tokenToText(Token token);
