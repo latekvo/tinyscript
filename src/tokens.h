@@ -2,8 +2,9 @@
 
 typedef enum {
   // internal util, do not treat as token
-  TOK_BLANK = 0,
-  TOK_LITERAL,
+  TOK_LITERAL = 0, // varname or RHS during parsing
+  TOK_END,         // ruleset custom series definition & iter terminator
+  TOK_BLANK,
 
   // separators
   TOK_EOL,   // \n
@@ -23,8 +24,8 @@ typedef enum {
   TOK_QUOTE_TICK,   // ``
 
   // LHS with RHS operators
+  // note: assignment-modification operators are derived at runtime
   TOK_ASSIGN, // =
-  TOK_RETURN, // return;
 
   // RHS with RHS operators
   TOK_EEQ,  // ===
@@ -41,8 +42,17 @@ typedef enum {
   TOK_SUB,  // -
   TOK_MULT, // *
   TOK_DIV,  // /
-  TOK_EXP,  // **
-  TOK_MOD,  // %
+
+  // RHS with RHS operators - unplanned
+  TOK_EXP,           // **
+  TOK_MOD,           // %
+  TOK_B_OR,          // |
+  TOK_B_AND,         // &
+  TOK_B_XOR,         // ^
+  TOK_B_NOT,         // ~
+  TOK_B_LSHIFT,      // <<
+  TOK_B_RSHIFT,      // >>
+  TOK_B_RSHIFT_FILL, // >>>
 
   // RHS values
   TOK_TRUE,
@@ -54,6 +64,9 @@ typedef enum {
   TOK_NEGATION, // !
   TOK_INC,      // ++
   TOK_DEC,      // --
+
+  // RHS operations
+  TOK_RETURN,
 
   // loops
   TOK_DO,

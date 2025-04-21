@@ -1,5 +1,7 @@
 #pragma once
 
+#include <sys/types.h>
+
 #include "tokens.h"
 
-char *tokenToText(Token token);
+char *tokenToText(ssize_t token);

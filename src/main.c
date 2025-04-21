@@ -10,6 +10,9 @@
 #include "separators.h"
 #include "tokens.h"
 
+// TODO: shrink to longest CommandRuleset token series
+#define CMD_TOK_BUF_SIZE 8
+
 // all separators except '\n' and ' ' are kept in place
 // precedence set by array ordering
 
@@ -19,25 +22,73 @@ Token stringLiteralsTokens[] = {
     TOK_QUOTE_TICK,
 };
 
+// TODO: explicitly define Command's RHS-ability
+// note: non-RHS-able commands may still be 'RHS' of functions' bodies
 typedef enum {
-  LITERAL_REF = 0,
-  ASSIGN,
-  CALL,
-  GET,
-  SET,
-  ADD,
-  SUB,
-  MULT,
-  DIV,
+  CMD_ASSIGN = 0,
+  CMD_CALL,
+  CMD_GET,
+  CMD_SET,
+  CMD_ADD,
+  CMD_SUB,
+  CMD_MULT,
+  CMD_DIV,
 } Command;
+
+// note: LHS <TOK>= RHS type of operations are derived from RHS_PAIR defs
+typedef enum {
+  CMD_TYPE_CUSTOM = 0, // default, tok. series: {<TOK_0>, <TOK_1>, ..., <TOK_N>}
+  CMD_TYPE_RHS_PAIR,   // groups R0 <TOK> R1 type ops, tok. series: {<TOK>}
+  CMD_TYPE_CALL,       // special interpreting, tok. series: empty
+} CommandType;
 
 // Rulesets for given command
 // - token matches
 // - resulting Command
 typedef struct {
   Command command;
-
+  CommandType type; // changes tokenSeries to a custom schema
+  Token tokenSeries[CMD_TOK_BUF_SIZE];
 } CommandRuleset;
+
+CommandRuleset commandRulesets[] = {
+    {
+        // =
+        CMD_ASSIGN,
+        CMD_TYPE_CUSTOM,
+        // Using TOK_LITERAL as temporary RHS wildcard arg - this is invalid!
+        {
+            TOK_LITERAL,
+            TOK_ASSIGN,
+            TOK_LITERAL,
+            TOK_END,
+        },
+    },
+    {
+        // + +=
+        CMD_ADD,
+        CMD_TYPE_RHS_PAIR,
+        {TOK_ADD},
+    },
+    {
+        // - -=
+        CMD_SUB,
+        CMD_TYPE_RHS_PAIR,
+        {TOK_SUB},
+    },
+    {
+        // * *=
+        CMD_MULT,
+        CMD_TYPE_RHS_PAIR,
+        {TOK_MULT},
+    },
+    {
+        // / /=
+        CMD_DIV,
+        CMD_TYPE_RHS_PAIR,
+        {TOK_DIV},
+    },
+};
 
 typedef enum {
   RHS_TYPE_SYNTAX_NODE = 0,
@@ -119,6 +170,12 @@ Token *extractFirstTokens(char **str, char **literal) {
   *str += spanToClosestSep + strlen(closestSepString);
 
   return tokens;
+}
+
+size_t extractFirstMatchingCommand(CommandRuleset **commandRuleset,
+                                   ssize_t **tokens) {
+
+  return 1;
 }
 
 // - Transpile to C for now, compile to opcodes in future.
@@ -220,12 +277,16 @@ int main(int argc, char **argv) {
     // statement definitions ^ opting-in for if ladders for now tokens[i];
   }
 
+  // TODO: verify if not potential OOR UB
+  tokens[updatedTokensHead] = TOK_END;
+
   // convert commands to flat AST
 
   // fixme: multiline statements not supported yet
-  // fixme: semicolon is required for now (although lack of \n support temp.
-  // fixes this)
-  for (int i = 0; i < tokensHead; i++) {
+  ssize_t *tokensPtr = tokens;
+  while (tokensPtr - tokens < updatedTokensHead) {
+    CommandRuleset *commandRuleset = NULL;
+    extractFirstMatchingCommand(&commandRuleset, &tokensPtr);
   }
 
   free(tokens);

@@ -2,9 +2,8 @@
 
 #include "conversions.h"
 #include "debugging.h"
-#include "tokens.h"
 
-char *tokenToText(Token token) {
+char *tokenToText(ssize_t token) {
   // debug utility
   for (int i = 0; i < tokenConversionsCount; i++) {
     if (tokenConversions[i].token == token) {
@@ -14,5 +13,10 @@ char *tokenToText(Token token) {
       return tokenConversions[i].match;
     }
   }
-  return "TOK_LITERAL or UNKNOWN";
+
+  if (token <= 0) {
+    return "LITERAL";
+  }
+
+  return "UNKNOWN";
 }
