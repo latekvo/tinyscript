@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,6 +28,7 @@ Token stringLiteralsTokens[] = {
 typedef enum {
   CMD_ASSIGN = 0,
   CMD_CALL,
+  CMD_RETURN,
   CMD_GET,
   CMD_SET,
   CMD_ADD,
@@ -90,6 +92,8 @@ CommandRuleset commandRulesets[] = {
     },
 };
 
+size_t commandRulesetsCount = sizeof(commandRulesets) / sizeof(CommandRuleset);
+
 typedef enum {
   RHS_TYPE_SYNTAX_NODE = 0,
   RHS_TYPE_LITERAL_REF,
@@ -113,14 +117,17 @@ typedef enum {
 // especially in JS - think array member assignment, nested math.
 ///
 
-typedef struct {
+typedef union {
+  struct SyntaxNode *rhsNode;
+  size_t rhsLiteralRef;
+} RHSValue;
+
+typedef struct SyntaxNode {
   Command command;
   struct SyntaxNode *lhs; // parent
-  union {                 // args to `command`, children
-    RHSType rhs_type;
-    struct SyntaxNode *rhs_node;
-    size_t rhs_literal_ref;
-  } *rhs;
+  size_t rhsCount;
+  RHSType *rhsTypes;
+  RHSValue *rhsValues;
 } SyntaxNode;
 
 Token *extractFirstTokens(char **str, char **literal) {
@@ -172,10 +179,110 @@ Token *extractFirstTokens(char **str, char **literal) {
   return tokens;
 }
 
-size_t extractFirstMatchingCommand(CommandRuleset **commandRuleset,
-                                   ssize_t **tokens) {
+void freeSyntaxTree(SyntaxNode *node) {
+  if (node->rhsValues != NULL && node->rhsTypes != NULL) {
+    for (size_t i = 0; i < node->rhsCount; i++) {
+      if (node->rhsTypes[i] == RHS_TYPE_SYNTAX_NODE) {
+        freeSyntaxTree(node->rhsValues[i].rhsNode);
+      }
+    }
+    free(node->rhsTypes);
+    free(node->rhsValues);
+  }
+  free(node);
+}
 
-  return 1;
+ssize_t findMatchingPatternIndex(ssize_t *tokens, size_t tokensCount) {
+  // todo: write a variadic arg tok pattern checker, will be much cleaner
+  for (size_t ruleIdx = 0; ruleIdx < commandRulesetsCount; ruleIdx++) {
+    CommandRuleset *ruleset = &commandRulesets[ruleIdx];
+    if (ruleset->type == CMD_TYPE_RHS_PAIR) {
+      // simplest case, no recursion
+      if (tokens[0] > 0 ||                        //
+          tokens[1] != ruleset->tokenSeries[0] || //
+          tokens[2] > 0) {
+        continue;
+      }
+      // todo: identify pattern despite recursivity
+      // todo: replace simplest case with programatic catch-all approach
+      // for now: if not the simplest case, recurse at the blank start
+    }
+
+    if (ruleset->type == CMD_TYPE_CALL) {
+      if (tokens[0] > 0 || tokens[1] != TOK_L_PN_BRACKET) {
+        continue;
+      }
+    }
+
+    if (ruleset->type == CMD_TYPE_CUSTOM) {
+      bool a = 1;
+      for (size_t tokIdx = 0; tokIdx < CMD_TOK_BUF_SIZE; tokIdx++) {
+        if (ruleset->tokenSeries[tokIdx] == TOK_END) {
+          // todo: handle terminators here, preferably have
+          // 			 a virtual TOK_SEP added during cleaning
+          break;
+        }
+        // todo: handle literals being nested RHSs here
+        if (ruleset->tokenSeries[tokIdx] == TOK_LITERAL && tokens[tokIdx] > 0) {
+          break;
+        }
+      }
+    }
+
+    // return first rule that is valid (non-violated)
+    return ruleIdx;
+  }
+  printf("Construct AST: Error: Couldn't find any matching rules.");
+  return -1;
+}
+
+void pushNodeRhs(SyntaxNode *node, RHSType type, RHSValue value) {
+  node->rhsValues[node->rhsCount] = value;
+  node->rhsTypes[node->rhsCount] = type;
+  node->rhsCount++;
+}
+
+// recursive AST constructor
+SyntaxNode *constructSyntaxTree(ssize_t *tokens, size_t tokensCount,
+                                SyntaxNode *lhs) {
+  if (lhs == NULL) {
+    // init root
+    lhs = malloc(sizeof(SyntaxNode));
+    lhs->command = CMD_RETURN;
+    lhs->lhs = NULL;
+    lhs->rhsTypes = NULL;
+    lhs->rhsValues = NULL;
+  }
+
+  size_t *args = NULL;
+  ssize_t ruleIdx = findMatchingPatternIndex(tokens, tokensCount);
+
+  if (ruleIdx < 0) {
+  }
+
+  CommandRuleset *ruleset = &commandRulesets[ruleIdx];
+  if (ruleset->type == CMD_TYPE_RHS_PAIR) {
+    printf("Construct AST: Match found: RHS PAIR");
+
+    // fixme: recursive mechanism omitted for now
+  }
+
+  if (ruleset->type == CMD_TYPE_CALL) {
+    printf("Construct AST: Match found: CALL");
+    // eval including member access parent class
+  }
+
+  if (ruleset->type == CMD_TYPE_CUSTOM) {
+    printf("Construct AST: Match found: DEFINED");
+    for (size_t tokIdx = 0; tokIdx < CMD_TOK_BUF_SIZE; tokIdx++) {
+      // Consume ; as part of END
+      if (ruleset->tokenSeries[tokIdx] == TOK_LITERAL && tokens[tokIdx] > 0) {
+        break;
+      }
+    }
+  }
+
+  return lhs;
 }
 
 // - Transpile to C for now, compile to opcodes in future.
@@ -239,6 +346,7 @@ int main(int argc, char **argv) {
 
       free(newToks);
 
+      // 2 byte padding is required for TOK_END and potential early break
       if (tokensHead >= tokensSize - 2) {
         printf("Token serialization: contains %zu, reallocating %zu -> %zu\n",
                tokensHead, tokensSize, tokensSize * 2);
@@ -273,8 +381,9 @@ int main(int argc, char **argv) {
 
   // convert tokens to commands
   for (int i = 0; i < updatedTokensHead; i++) {
-    // todo: implement ruleset filtration & detection, will allow for clear
-    // statement definitions ^ opting-in for if ladders for now tokens[i];
+    // could also simplify code in this step, by unfolding all statements,
+    // deduplicating, and individually optimizing them, then folding them back
+    // in the AST init step
   }
 
   // TODO: verify if not potential OOR UB
@@ -282,12 +391,17 @@ int main(int argc, char **argv) {
 
   // convert commands to flat AST
 
+  // Single-pass is theoritically possible, but much more complex.
+  // Basically, we have to store incomplete commands and defer them.
+  // But it's not so bad if we're live-building the AST, as the empty
+  // fields are immidiately filled in with the very next tokens.
+
   // fixme: multiline statements not supported yet
-  ssize_t *tokensPtr = tokens;
-  while (tokensPtr - tokens < updatedTokensHead) {
-    CommandRuleset *commandRuleset = NULL;
-    extractFirstMatchingCommand(&commandRuleset, &tokensPtr);
-  }
+  // TODO: implement single-passing nested statements
+  // 			 complex RHS can be left as TOK_BLANK, we can then track
+  // 			 all TOK_BLANK, and substitute them sequentially
+  // 			 since we're performing a BFS
+  SyntaxNode *astRoot = constructSyntaxTree(tokens, updatedTokensHead, NULL);
 
   free(tokens);
 
@@ -299,6 +413,8 @@ int main(int argc, char **argv) {
     free(literals[i]);
   }
   free(literals);
+
+  freeSyntaxTree(astRoot);
 
   fclose(file);
   return 0;
