@@ -7,76 +7,9 @@
 #include <sys/types.h>
 
 #include "ast.h"
-#include "conversions.h"
 #include "debugging.h"
 #include "separators.h"
 #include "tokens.h"
-
-// TODO: shrink to longest CommandRuleset token series
-
-// all separators except '\n' and ' ' are kept in place
-// precedence set by array ordering
-
-Token stringLiteralsTokens[] = {
-    TOK_QUOTE_SINGLE,
-    TOK_QUOTE_DOUBLE,
-    TOK_QUOTE_TICK,
-};
-
-Token *extractFirstTokens(char **str, char **literal) {
-  // returning first two tokens - an expression and separator or newline token
-  // if no separator is present returned tokens are removed from str by shifting
-  // str ptr by returned tokens' length
-  Token *tokens = malloc(sizeof(Token) * 2);
-
-  size_t spanToClosestSep = strlen(*str) - 1;
-  char *closestSepString = "\n";
-
-  for (size_t i = 0; i < syntaxUnitsSeparatorsCount; i++) {
-    char *separator = syntaxUnitsSeparators[i];
-
-    // fixme: we cannot just lookup seps, we have to find the first one
-    char *foundSep = strstr(*str, separator);
-
-    if (foundSep == NULL) {
-      continue;
-    }
-
-    size_t nToSep = foundSep - *str;
-
-    if (nToSep >= spanToClosestSep) {
-      // only keeping the closest separator
-      continue;
-    }
-
-    spanToClosestSep = nToSep;
-    closestSepString = separator;
-  }
-
-  char tokenBuf[spanToClosestSep + 1];
-  strncpy(tokenBuf, *str, spanToClosestSep);
-  tokenBuf[spanToClosestSep] = '\0';
-
-  tokens[0] = strToToken(tokenBuf);
-  tokens[1] = strToToken(closestSepString);
-
-  if (tokens[0] == TOK_LITERAL) {
-    // heap is slow, only allocating when needed
-    *literal = malloc(spanToClosestSep + 1);
-    strcpy(*literal, tokenBuf);
-  }
-
-  // remove from input
-  *str += spanToClosestSep + strlen(closestSepString);
-
-  return tokens;
-}
-
-// - Transpile to C for now, compile to opcodes in future.
-// - Figure out entry points, hooking up to JSI could work.
-// End goal:
-// - 1. Compile JS to executable binaries.
-// - 2. Convert TSX apps to binaries + minimal TS.
 
 int main(int argc, char **argv) {
   if (argc == 1) {
@@ -192,7 +125,12 @@ int main(int argc, char **argv) {
 
   free(tokens);
 
-  // beta-reduce AST - temporarily omitted
+  // beta-reduce AST
+
+  for (; 0;) {
+    // 1. collect all literals refs
+    // 2. hoist collected literals where possible
+  }
 
   // convert AST to C
 
