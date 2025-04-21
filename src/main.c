@@ -7,7 +7,6 @@
 #include <sys/types.h>
 
 #include "ast.h"
-#include "debugging.h"
 #include "separators.h"
 #include "tokens.h"
 
@@ -84,55 +83,22 @@ int main(int argc, char **argv) {
 
   free(line);
 
-  // cleanup tokens - overwriting the existing mempool
-  size_t updatedTokensHead = 0;
+  tokens[tokensHead] = TOK_END;
 
-  size_t rHead = 0;
-  for (size_t wHead = 0; wHead < tokensHead; wHead++) {
-    // skip unwanted tokens
-    // note: could optimize	by ANDing a bitmask
-    // note: could optimize by moving logic to token extraction
+  // Step: Tokens to AST
 
-    printf("Token cleanup: \"%s\", (%li)\n", tokenToText(tokens[wHead]),
-           tokens[wHead]);
-
-    updatedTokensHead = wHead + 1;
-  }
-
-  // convert tokens to commands
-  for (int i = 0; i < updatedTokensHead; i++) {
-    // could also simplify code in this step, by unfolding all statements,
-    // deduplicating, and individually optimizing them, then folding them back
-    // in the AST init step
-  }
-
-  // TODO: verify if not potential OOR UB
-  tokens[updatedTokensHead] = TOK_END;
-
-  // convert commands to flat AST
-
-  // Single-pass is theoritically possible, but much more complex.
-  // Basically, we have to store incomplete commands and defer them.
-  // But it's not so bad if we're live-building the AST, as the empty
-  // fields are immidiately filled in with the very next tokens.
-
-  // fixme: multiline statements not supported yet
-  // TODO: implement single-passing nested statements
-  // 			 complex RHS can be left as TOK_BLANK, we can then track
-  // 			 all TOK_BLANK, and substitute them sequentially
-  // 			 since we're performing a BFS
-  SyntaxNode *astRoot = constructSyntaxTree(tokens, updatedTokensHead, NULL);
+  SyntaxNode *astRoot = constructSyntaxTree(tokens, tokensHead, NULL);
 
   free(tokens);
 
-  // beta-reduce AST
+  // Step: beta-reduce AST
 
   for (; 0;) {
     // 1. collect all literals refs
     // 2. hoist collected literals where possible
   }
 
-  // convert AST to C
+  // Step: AST to C
 
   for (size_t i = 0; i < literalsHead; i++) {
     free(literals[i]);
