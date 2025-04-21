@@ -6,9 +6,9 @@
 #include <string.h>
 #include <sys/types.h>
 
+#include "ast.h"
 #include "conversions.h"
 #include "debugging.h"
-#include "rulesets.h"
 #include "separators.h"
 #include "tokens.h"
 
@@ -22,42 +22,6 @@ Token stringLiteralsTokens[] = {
     TOK_QUOTE_DOUBLE,
     TOK_QUOTE_TICK,
 };
-
-typedef enum {
-  RHS_TYPE_SYNTAX_NODE = 0,
-  RHS_TYPE_LITERAL_REF,
-} RHSType;
-
-/// SyntaxNode structure - temporary thought block
-// in the transpiling process, do we have to reverse the tree?
-// after beta reduction, we definietely have to eval children before parents
-// but then commands are structured PARENT(CHILDREN) or PARENT = CHILDREN
-// so the most trivial approach would be to create vars for each child
-// recursively
-///
-// in the token -> AST process, how do we build it?
-// do we first create leafs, then mount them onto LHS, or the other way around?
-// After determining command, it's the simplest to start with parents.
-// And travel outward-to-inward, if we encounter nesting, start a separate rhs
-// node. Most commands operations on foo given args, simple lhs + rhs children
-// doesn't show that. Could either treat rhs[0] as the target, or could have: {
-// SyntaxNode scope, literal_ref target, and SyntaxNode *args } no, that
-// overcomplicates matters in practice, as the target may be RHS in most cases,
-// especially in JS - think array member assignment, nested math.
-///
-
-typedef union {
-  struct SyntaxNode *rhsNode;
-  size_t rhsLiteralRef;
-} RHSValue;
-
-typedef struct SyntaxNode {
-  Command command;
-  struct SyntaxNode *lhs; // parent
-  size_t rhsCount;
-  RHSType *rhsTypes;
-  RHSValue *rhsValues;
-} SyntaxNode;
 
 Token *extractFirstTokens(char **str, char **literal) {
   // returning first two tokens - an expression and separator or newline token
@@ -106,67 +70,6 @@ Token *extractFirstTokens(char **str, char **literal) {
   *str += spanToClosestSep + strlen(closestSepString);
 
   return tokens;
-}
-
-void freeSyntaxTree(SyntaxNode *node) {
-  if (node->rhsValues != NULL && node->rhsTypes != NULL) {
-    for (size_t i = 0; i < node->rhsCount; i++) {
-      if (node->rhsTypes[i] == RHS_TYPE_SYNTAX_NODE) {
-        freeSyntaxTree(node->rhsValues[i].rhsNode);
-      }
-    }
-    free(node->rhsTypes);
-    free(node->rhsValues);
-  }
-  free(node);
-}
-void pushNodeRhs(SyntaxNode *node, RHSType type, RHSValue value) {
-  node->rhsValues[node->rhsCount] = value;
-  node->rhsTypes[node->rhsCount] = type;
-  node->rhsCount++;
-}
-
-// recursive AST constructor
-SyntaxNode *constructSyntaxTree(ssize_t *tokens, size_t tokensCount,
-                                SyntaxNode *lhs) {
-  if (lhs == NULL) {
-    // init root
-    lhs = malloc(sizeof(SyntaxNode));
-    lhs->command = CMD_RETURN;
-    lhs->lhs = NULL;
-    lhs->rhsTypes = NULL;
-    lhs->rhsValues = NULL;
-  }
-
-  size_t *args = NULL;
-  ssize_t ruleIdx = findMatchingPatternIndex(tokens, tokensCount);
-
-  if (ruleIdx < 0) {
-  }
-
-  CommandRuleset *ruleset = &commandRulesets[ruleIdx];
-  if (ruleset->type == CMD_TYPE_RHS_PAIR) {
-    printf("Construct AST: Match found: RHS PAIR");
-
-    // fixme: recursive mechanism omitted for now
-  }
-
-  if (ruleset->type == CMD_TYPE_CALL) {
-    printf("Construct AST: Match found: CALL");
-    // eval including member access parent class
-  }
-
-  if (ruleset->type == CMD_TYPE_CUSTOM) {
-    printf("Construct AST: Match found: DEFINED");
-    for (size_t tokIdx = 0; tokIdx < CMD_TOK_BUF_SIZE; tokIdx++) {
-      // Consume ; as part of END
-      if (ruleset->tokenSeries[tokIdx] == TOK_LITERAL && tokens[tokIdx] > 0) {
-        break;
-      }
-    }
-  }
-
-  return lhs;
 }
 
 // - Transpile to C for now, compile to opcodes in future.
