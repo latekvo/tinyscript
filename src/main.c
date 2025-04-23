@@ -7,6 +7,7 @@
 #include <sys/types.h>
 
 #include "ast.h"
+#include "debugging.h"
 #include "parser.h"
 
 // split "literals" into typedLiterals:
@@ -36,6 +37,8 @@ int main(int argc, char **argv) {
 
   SyntaxNode *astRoot = constructSyntaxTree(tokens, tokensCount, NULL);
 
+  prettyPrintAst(astRoot, literals);
+
   free(tokens);
 
   // Step: Beta-reduce AST
@@ -46,6 +49,9 @@ int main(int argc, char **argv) {
   }
 
   // Step: AST to C
+
+  for (; 0;) {
+  }
 
   for (size_t i = 0; i < literalsCount; i++) {
     free(literals[i]);

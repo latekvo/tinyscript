@@ -30,6 +30,7 @@ SyntaxNode *constructSyntaxTree(ssize_t *tokens, size_t tokensCount,
     lhs = malloc(sizeof(SyntaxNode));
     lhs->command = CMD_RETURN;
     lhs->lhs = NULL;
+    lhs->rhsCount = 0;
     lhs->rhsTypes = NULL;
     lhs->rhsValues = NULL;
   }

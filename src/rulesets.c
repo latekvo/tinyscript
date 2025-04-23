@@ -11,6 +11,32 @@ CommandRuleset commandRulesets[] = {
         CMD_TYPE_CUSTOM,
         // Using TOK_LITERAL as temporary RHS wildcard arg - this is invalid!
         {
+            TOK_CONST,
+            TOK_LITERAL,
+            TOK_ASSIGN,
+            TOK_LITERAL,
+            TOK_END,
+        },
+    },
+    {
+        // =
+        CMD_ASSIGN,
+        CMD_TYPE_CUSTOM,
+        // Using TOK_LITERAL as temporary RHS wildcard arg - this is invalid!
+        {
+            TOK_LET,
+            TOK_LITERAL,
+            TOK_ASSIGN,
+            TOK_LITERAL,
+            TOK_END,
+        },
+    },
+    {
+        // =
+        CMD_ASSIGN,
+        CMD_TYPE_CUSTOM,
+        // Using TOK_LITERAL as temporary RHS wildcard arg - this is invalid!
+        {
             TOK_LITERAL,
             TOK_ASSIGN,
             TOK_LITERAL,
