@@ -33,11 +33,11 @@ void _prettyPrintAst(SyntaxNode *node, char **literals, size_t nesting) {
   _indent(nesting);
   printf("- command %u\n", node->command);
   for (size_t i = 0; i < node->rhsCount; i++) {
-    if (node->rhsTypes[i] == RHS_TYPE_SYNTAX_NODE) {
-      _prettyPrintAst(node->rhsValues[i].rhsNode, literals, nesting + 1);
+    if (node->rhsNodes[i].type == RHS_TYPE_SYNTAX_NODE) {
+      _prettyPrintAst(node->rhsNodes[i].value.rhsNode, literals, nesting + 1);
     } else {
       _indent(nesting + 1);
-      printf("- %s\n", literals[node->rhsValues[i].rhsLiteralRef]);
+      printf("- %s\n", literals[node->rhsNodes[i].value.rhsLiteralRef]);
     }
   }
 }

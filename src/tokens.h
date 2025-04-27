@@ -2,8 +2,10 @@
 
 typedef enum {
   // internal util, do not treat as token
-  TOK_LITERAL = 0, // varname or RHS during parsing
-  TOK_END,         // ruleset custom series definition & iter terminator
+  TOK_LITERAL = 0,
+  TOK_LHS_GROUP, // ruleset matching: LHS
+  TOK_RHS_GROUP, // ruleset matching: RHS
+  TOK_END,       // ruleset custom series definition & iter terminator
   TOK_BLANK,
 
   // separators

@@ -33,6 +33,15 @@ int main(int argc, char **argv) {
 
   tokenizeFile(&tokens, &tokensCount, &literals, &literalsCount, argv[1]);
 
+  // Step: Patch Tokens
+
+  for (size_t i = 0; i < tokensCount; i++) {
+    // Steps which offload edge-case logic away from AST constructor
+    // - in math ops, precedence has to be set using parenthesis
+    // - statements have to be clearly isolated and terminated (semicolon)
+    // - nested statements have to be wrapped by parentheses
+  }
+
   // Step: Tokens to AST
 
   SyntaxNode *astRoot = constructSyntaxTree(tokens, tokensCount, NULL);
@@ -41,7 +50,7 @@ int main(int argc, char **argv) {
 
   free(tokens);
 
-  // Step: Beta-reduce AST
+  // Step: Beta-reduce AST - skipping for now
 
   for (; 0;) {
     // 1. collect all literals refs

@@ -14,16 +14,19 @@ typedef union {
   size_t rhsLiteralRef;
 } RHSValue;
 
+typedef struct {
+  RHSType type;
+  RHSValue value;
+} RHSNode;
+
 typedef struct SyntaxNode {
   Command command;
   struct SyntaxNode *lhs; // parent
   size_t rhsCount;
-  RHSType *rhsTypes;
-  RHSValue *rhsValues;
+  size_t rhsCapacity;
+  RHSNode *rhsNodes;
 } SyntaxNode;
 
 void freeSyntaxTree(SyntaxNode *node);
 SyntaxNode *constructSyntaxTree(ssize_t *tokens, size_t tokensCount,
                                 SyntaxNode *lhs);
-
-void pushNodeRhs(SyntaxNode *node, RHSType type, RHSValue value);

@@ -5,63 +5,144 @@
 #include "ast.h"
 
 void freeSyntaxTree(SyntaxNode *node) {
-  if (node->rhsValues != NULL && node->rhsTypes != NULL) {
+  if (node->rhsNodes != NULL) {
     for (size_t i = 0; i < node->rhsCount; i++) {
-      if (node->rhsTypes[i] == RHS_TYPE_SYNTAX_NODE) {
-        freeSyntaxTree(node->rhsValues[i].rhsNode);
+      if (node->rhsNodes[i].type == RHS_TYPE_SYNTAX_NODE) {
+        freeSyntaxTree(node->rhsNodes[i].value.rhsNode);
       }
     }
-    free(node->rhsTypes);
-    free(node->rhsValues);
+    free(node->rhsNodes);
   }
   free(node);
 }
-void pushNodeRhs(SyntaxNode *node, RHSType type, RHSValue value) {
-  node->rhsValues[node->rhsCount] = value;
-  node->rhsTypes[node->rhsCount] = type;
-  node->rhsCount++;
+
+void pushRhsNode(SyntaxNode *lhs, RHSNode rhs) {
+  if (lhs->rhsNodes == NULL) {
+
+  } else if (lhs->rhsCount == lhs->rhsCapacity) {
+    lhs->rhsCapacity *= 2;
+
+    printf("Construct AST: Expanding node rhs capacity to %zu",
+           lhs->rhsCapacity);
+
+    lhs->rhsNodes =
+        reallocarray(lhs->rhsNodes, lhs->rhsCount, lhs->rhsCapacity);
+  }
+
+  lhs->rhsNodes[lhs->rhsCount].value = rhs.value;
+  lhs->rhsNodes[lhs->rhsCount].type = rhs.type;
+  lhs->rhsCount++;
 }
+
+size_t nTokToEnd(ssize_t *tokens, size_t startAt, size_t tokensCount) {
+  // seek nearest semicolon
+  // todo: could optimize by storing statement length,
+  // 		   constructing a register of all statements, sort of pre-ast
+  // 		   pre-ast is already planned, refer to main.c's "Patch Tokens"
+  for (size_t i = startAt; i < tokensCount; i++) {
+    if (tokens[i] == TOK_SEMICOLON) {
+      return i;
+    }
+  }
+  printf("Construct AST: Invalid sytax: No statement end found");
+  return -1;
+}
+
+// instead of allowing SyntaxNode to be both the stem, and the leaf,
+// we could limit it's role to just the stem, and use separate constructs
+// as leafs.
+// Example:
+// -> ASSIGN [Node]
+// 		-> VALUE [Leaf]
+// 			 -> "foo"
+// -> ASSIGN [Node]
+// 		-> GET [Leaf]
+// 			 -> "varname"
+// Consider this solution, if S. Node handling logic will become overcomplicated
+//
+// ---
+//
+// desired structure:
+// [global]
+//  - [file.js] // may export definitions
+//    - [nested definitions]
+// example:
+// global
+// -> FILE(RHS, RHS...)
+// 		-> "main.js"
+// 	  -> DEFINE(RHS)
+// 	  .  -> "increment"
+// 	  -> ASSIGN(RHS, RHS)
+// 	  .  -> "increment"
+// 	  .  -> FUNCTION(RHS...)
+// 	  .     -> DEFINE_ARG(RHS) // not sure how this will work yet
+// 	  .     .  -> "input"
+// 	  .			-> DEFINE(RHS)
+// 	  .     .	-> "output"
+// 	  .     -> ASSIGN(RHS, RHS)
+// 	  .     .	-> "output"
+// 	  .     .	-> ADD(RHS, RHS)
+// 	  .     .		 -> GET(RHS)
+// 	  .     .		 .	-> "input"
+// 	  .     .		 -> 1
+// 	  .     -> RETURN(RHS)
+// 	  .     		-> GET(RHS)
+// 	  .     			 -> "output"
+//		-> CALL(RHS, RHS...)
+//			 -> "increment"
 
 // recursive AST constructor
 SyntaxNode *constructSyntaxTree(ssize_t *tokens, size_t tokensCount,
                                 SyntaxNode *lhs) {
   if (lhs == NULL) {
+    printf("Construct AST: Initializing AST root\n");
     // init root
     lhs = malloc(sizeof(SyntaxNode));
     lhs->command = CMD_RETURN;
     lhs->lhs = NULL;
     lhs->rhsCount = 0;
-    lhs->rhsTypes = NULL;
-    lhs->rhsValues = NULL;
+    lhs->rhsCapacity = 256; // root has expanded initial cap
+    lhs->rhsNodes = malloc(sizeof(RHSNode) * lhs->rhsCapacity);
   }
 
-  size_t *args = NULL;
-  ssize_t ruleIdx = findMatchingPatternIndex(tokens, tokensCount);
+  // function-body parsing is not recursive
+  // nested statements ARE recursive with constructSyntaxTree
+  for (size_t tokensOffset = 0; tokensOffset < tokensCount;
+       tokensOffset += nTokToEnd(tokens, tokensOffset, tokensCount)) {
+    size_t *args = NULL;
+    ssize_t ruleIdx =
+        findMatchingPatternIndex(tokens + tokensOffset, tokensCount);
 
-  if (ruleIdx < 0) {
-  }
+    if (ruleIdx < 0) {
+      printf("Construct AST: Invalid syntax: Rule not found\n");
+    }
 
-  CommandRuleset *ruleset = &commandRulesets[ruleIdx];
-  if (ruleset->type == CMD_TYPE_RHS_PAIR) {
-    printf("Construct AST: Match found: RHS PAIR\n");
+    CommandRuleset *ruleset = &commandRulesets[ruleIdx];
+    if (ruleset->type == CMD_TYPE_RHS_PAIR) {
+      // operator type RHS
+      printf("Construct AST: Match found: RHS PAIR\n");
+      RHSNode rhs;
+      rhs.type = RHS_TYPE_SYNTAX_NODE;
+      rhs.value.rhsNode = malloc(sizeof(SyntaxNode));
+      rhs.value.rhsNode->lhs = lhs;
+      rhs.value.rhsNode->command = ruleset->command;
+      pushRhsNode(lhs, rhs);
+    }
 
-    // fixme: recursive mechanism omitted for now
-  }
+    if (ruleset->type == CMD_TYPE_CALL) {
+      printf("Construct AST: Match found: CALL\n");
+      // eval including member access parent class
+    }
 
-  if (ruleset->type == CMD_TYPE_CALL) {
-    printf("Construct AST: Match found: CALL\n");
-    // eval including member access parent class
-  }
-
-  if (ruleset->type == CMD_TYPE_CUSTOM) {
-    printf("Construct AST: Match found: DEFINED\n");
-    for (size_t tokIdx = 0; tokIdx < CMD_TOK_BUF_SIZE; tokIdx++) {
-      // Consume ; as part of END
-      if (ruleset->tokenSeries[tokIdx] == TOK_LITERAL && tokens[tokIdx] > 0) {
-        break;
+    if (ruleset->type == CMD_TYPE_CUSTOM) {
+      printf("Construct AST: Match found: DEFINED\n");
+      for (size_t tokIdx = 0; tokIdx < CMD_TOK_BUF_SIZE; tokIdx++) {
+        // Consume ; as part of END
+        if (ruleset->tokenSeries[tokIdx] == TOK_LITERAL && tokens[tokIdx] > 0) {
+          break;
+        }
       }
     }
   }
-
   return lhs;
 }

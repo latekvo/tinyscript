@@ -11,6 +11,8 @@ typedef enum {
   CMD_ASSIGN = 0,
   CMD_CALL,
   CMD_RETURN,
+  CMD_DEFINE,
+  CMD_CODE_BLOCK, // code block defs, required internally
   CMD_GET,
   CMD_SET,
   CMD_ADD,
@@ -21,9 +23,10 @@ typedef enum {
 
 // note: LHS <TOK>= RHS type of operations are derived from RHS_PAIR defs
 typedef enum {
-  CMD_TYPE_CUSTOM = 0, // default, tok. series: {<TOK_0>, <TOK_1>, ..., <TOK_N>}
-  CMD_TYPE_RHS_PAIR,   // groups R0 <TOK> R1 type ops, tok. series: {<TOK>}
-  CMD_TYPE_CALL,       // special interpreting, tok. series: empty
+  CMD_TYPE_CUSTOM = 0,    // t. series: AS DEFINED
+  CMD_TYPE_RHS_PAIR,      // groups R0 <TOK> R1 type ops, t. series: {<TOK>}
+  CMD_TYPE_INLINE_SETTER, // groups R0 <TOK>= R1, t. series: {<TOK>}
+  CMD_TYPE_CALL,          // special interpreting, t. series: empty
 } CommandType;
 
 // Rulesets for given command
