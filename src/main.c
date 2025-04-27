@@ -44,7 +44,7 @@ int main(int argc, char **argv) {
 
   // Step: Tokens to AST
 
-  SyntaxNode *astRoot = constructSyntaxTree(tokens, tokensCount, NULL);
+  SyntaxNode *astRoot = constructSyntaxTree(tokens, NULL);
 
   prettyPrintAst(astRoot, literals);
 

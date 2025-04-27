@@ -12,7 +12,7 @@ typedef enum {
   CMD_CALL,
   CMD_RETURN,
   CMD_DEFINE,
-  CMD_CODE_BLOCK, // code block defs, required internally
+  CMD_CODE_BLOCK, // internal typing, helps with simplification
   CMD_GET,
   CMD_SET,
   CMD_ADD,
@@ -39,4 +39,4 @@ typedef struct {
 } CommandRuleset;
 
 extern CommandRuleset commandRulesets[];
-ssize_t findMatchingPatternIndex(ssize_t *tokens, size_t tokensCount);
+ssize_t findMatchingPatternIndex(ssize_t *tokens);

@@ -95,7 +95,7 @@ CommandRuleset commandRulesets[] = {
 size_t commandRulesetsCount = sizeof(commandRulesets) / sizeof(CommandRuleset);
 
 // fixme: mova away from malloc'ing within functions everywhere
-size_t getRhsGroupLength(char *startPtr) {
+size_t getRhsGroupLength(char *tokens, size_t startOffset) {
   // TODO: we can extract ALL nested RHSs within a root RHS
   // 			 in one-pass:
   // 			 on '(':
@@ -107,10 +107,14 @@ size_t getRhsGroupLength(char *startPtr) {
   // 			 having both as separate steps is mentally simpler,
   // 			 but leads to code and logic duplication and redundancy
 
+  for (size_t i = startOffset; tokens[i] != TOK_END; i++) {
+    if (tokens[i] == 0) {
+    }
+  }
   return 3;
 }
 
-ssize_t findMatchingPatternIndex(ssize_t *tokens, size_t tokensCount) {
+ssize_t findMatchingPatternIndex(ssize_t *tokens) {
   // todo: write a variadic arg tok pattern checker, will be much cleaner
   for (size_t ruleIdx = 0; ruleIdx < commandRulesetsCount; ruleIdx++) {
     CommandRuleset *ruleset = &commandRulesets[ruleIdx];

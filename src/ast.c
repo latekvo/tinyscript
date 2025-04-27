@@ -34,20 +34,6 @@ void pushRhsNode(SyntaxNode *lhs, RHSNode rhs) {
   lhs->rhsCount++;
 }
 
-size_t nTokToEnd(ssize_t *tokens, size_t startAt, size_t tokensCount) {
-  // seek nearest semicolon
-  // todo: could optimize by storing statement length,
-  // 		   constructing a register of all statements, sort of pre-ast
-  // 		   pre-ast is already planned, refer to main.c's "Patch Tokens"
-  for (size_t i = startAt; i < tokensCount; i++) {
-    if (tokens[i] == TOK_SEMICOLON) {
-      return i;
-    }
-  }
-  printf("Construct AST: Invalid sytax: No statement end found");
-  return -1;
-}
-
 // instead of allowing SyntaxNode to be both the stem, and the leaf,
 // we could limit it's role to just the stem, and use separate constructs
 // as leafs.
@@ -92,8 +78,7 @@ size_t nTokToEnd(ssize_t *tokens, size_t startAt, size_t tokensCount) {
 //			 -> "increment"
 
 // recursive AST constructor
-SyntaxNode *constructSyntaxTree(ssize_t *tokens, size_t tokensCount,
-                                SyntaxNode *lhs) {
+SyntaxNode *constructSyntaxTree(ssize_t *tokens, SyntaxNode *lhs) {
   if (lhs == NULL) {
     printf("Construct AST: Initializing AST root\n");
     // init root
@@ -101,17 +86,16 @@ SyntaxNode *constructSyntaxTree(ssize_t *tokens, size_t tokensCount,
     lhs->command = CMD_RETURN;
     lhs->lhs = NULL;
     lhs->rhsCount = 0;
-    lhs->rhsCapacity = 256; // root has expanded initial cap
+    lhs->rhsCapacity = 256; // large initial cap for root
     lhs->rhsNodes = malloc(sizeof(RHSNode) * lhs->rhsCapacity);
   }
 
   // function-body parsing is not recursive
   // nested statements ARE recursive with constructSyntaxTree
-  for (size_t tokensOffset = 0; tokensOffset < tokensCount;
-       tokensOffset += nTokToEnd(tokens, tokensOffset, tokensCount)) {
+  for (size_t tokensOffset = 0; tokens[tokensOffset] != TOK_END;
+       tokensOffset += 1) {
     size_t *args = NULL;
-    ssize_t ruleIdx =
-        findMatchingPatternIndex(tokens + tokensOffset, tokensCount);
+    ssize_t ruleIdx = findMatchingPatternIndex(tokens + tokensOffset);
 
     if (ruleIdx < 0) {
       printf("Construct AST: Invalid syntax: Rule not found\n");

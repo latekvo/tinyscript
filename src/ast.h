@@ -28,5 +28,4 @@ typedef struct SyntaxNode {
 } SyntaxNode;
 
 void freeSyntaxTree(SyntaxNode *node);
-SyntaxNode *constructSyntaxTree(ssize_t *tokens, size_t tokensCount,
-                                SyntaxNode *lhs);
+SyntaxNode *constructSyntaxTree(ssize_t *tokens, SyntaxNode *lhs);
