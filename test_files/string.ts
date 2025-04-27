@@ -1,3 +1,7 @@
-const lit: string = 'foo';
+const str: string = 'foo';
 
-console.log(lit);
+console.log(str);
+console.log('inline a');
+console.log("inline b");
+console.log('"inline q"');
+console.log("'inline q'");
