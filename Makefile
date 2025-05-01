@@ -5,6 +5,7 @@ CC=gcc
 CFLAGS=-g
 MEMCHECK_CMD=valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose --log-file=valgrind-out.txt
 
+TEST_FILE=test_files/rhs_only.js
 
 OBJECTS=$(subst $(SOURCE_DIR),$(BUILD_DIR),$(subst .c,.o,$(wildcard $(SOURCE_DIR)*.c)))
 
@@ -24,7 +25,7 @@ clean:
 
 test: $(TARGET)
 	# temporary testing solution, will add more robust testing in future
-	./$(TARGET) test_files/simple.js  
+	./$(TARGET) $(TEST_FILE) 
 
 memcheck: $(TARGET)
-	$(MEMCHECK_CMD) ./$(TARGET) test_files/simple.js 
+	$(MEMCHECK_CMD) ./$(TARGET) $(TEST_FILE) 
