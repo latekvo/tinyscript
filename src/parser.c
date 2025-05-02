@@ -9,11 +9,10 @@
 #include "parser.h"
 #include "separators.h"
 
-Token *extractFirstTokens(char **str, char **literal) {
+void extractFirstTokens(Token results[2], char **str, char **literal) {
   // returning first two tokens - an expression and separator or newline token
   // if no separator is present returned tokens are removed from str by shifting
   // str ptr by returned tokens' length
-  Token *tokens = malloc(sizeof(Token) * 2);
 
   size_t spanToClosestSep = strlen(*str) - 1;
   char *closestSepString = "\n";
@@ -43,10 +42,10 @@ Token *extractFirstTokens(char **str, char **literal) {
   strncpy(tokenBuf, *str, spanToClosestSep);
   tokenBuf[spanToClosestSep] = '\0';
 
-  tokens[0] = strToToken(tokenBuf);
-  tokens[1] = strToToken(closestSepString);
+  results[0] = strToToken(tokenBuf);
+  results[1] = strToToken(closestSepString);
 
-  if (tokens[0] == TOK_LITERAL) {
+  if (results[0] == TOK_LITERAL) {
     // heap is slow, only allocating when needed
     *literal = malloc(spanToClosestSep + 1);
     strcpy(*literal, tokenBuf);
@@ -54,8 +53,6 @@ Token *extractFirstTokens(char **str, char **literal) {
 
   // remove from input
   *str += spanToClosestSep + strlen(closestSepString);
-
-  return tokens;
 }
 
 void tokenizeFile(ssize_t **tokens, size_t *tokensCount, char ***literals,
@@ -79,37 +76,34 @@ void tokenizeFile(ssize_t **tokens, size_t *tokensCount, char ***literals,
   printf("Token serialization: tokens allocating %zu\n", tokensSize);
   printf("Token serialization: literals allocating %zu\n", literalsSize);
 
+  Token tokenBuf[2];
+
   while ((nread = getline(&line, &len, file)) != -1) {
     // ptr copy allows slicing off extracted tokens
     char *linePtr = line;
 
     while (*linePtr != '\0') {
       char *literal = NULL;
-      Token *newToks = extractFirstTokens(&linePtr, &literal);
+      extractFirstTokens(tokenBuf, &linePtr, &literal);
 
-      if (newToks[0] == TOK_LITERAL) {
+      if (tokenBuf[0] == TOK_LITERAL) {
         // fixme: dynamically expand literals memory
         (*literals)[*literalsCount] = literal;
 
         (*tokens)[*tokensCount] = -(*literalsCount); // literal's ref
         (*literalsCount)++;
         (*tokensCount)++;
-      } else if (newToks[0] != TOK_BLANK) {
-        (*tokens)[*tokensCount] = newToks[0];
+      } else if (tokenBuf[0] != TOK_BLANK) {
+        (*tokens)[*tokensCount] = tokenBuf[0];
         (*tokensCount)++;
       }
 
-      if (newToks[1] != TOK_SPACE) {
-        (*tokens)[*tokensCount] = newToks[1];
+      // todo: temporarily ignoring \n
+      // 			 we won't be able to do that in the future
+      if (tokenBuf[1] != TOK_SPACE && tokenBuf[1] != TOK_EOL) {
+        (*tokens)[*tokensCount] = tokenBuf[1];
         (*tokensCount)++;
       }
-
-      if (newToks[1] == TOK_EOL) {
-        free(newToks);
-        break;
-      }
-
-      free(newToks);
 
       // 2 byte padding is required for TOK_END and potential early break
       if ((*tokensCount) >= tokensSize - 2) {
@@ -130,6 +124,7 @@ void tokenizeFile(ssize_t **tokens, size_t *tokensCount, char ***literals,
   free(line);
   fclose(file);
 
-  (*tokens)[(*tokensCount)] = TOK_END;
+  // note: necessary padding is present
+  (*tokens)[(*tokensCount)++] = TOK_END;
 }
 

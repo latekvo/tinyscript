@@ -33,6 +33,8 @@ int main(int argc, char **argv) {
 
   tokenizeFile(&tokens, &tokensCount, &literals, &literalsCount, argv[1]);
 
+  prettyPrintTokens(tokens, tokensCount, 0);
+
   // Step: Patch Tokens
 
   for (size_t i = 0; i < tokensCount; i++) {
