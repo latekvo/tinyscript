@@ -87,11 +87,26 @@ void tokenizeFile(ssize_t **tokens, size_t *tokensCount, char ***literals,
       extractFirstTokens(tokenBuf, &linePtr, &literal);
 
       if (tokenBuf[0] == TOK_LITERAL) {
+        long literalRef = TOK_END; // default intentionally invalid
         // fixme: dynamically expand literals memory
-        (*literals)[*literalsCount] = literal;
+        // todo: implement O(1) lookup here
+        short isLitPresent = 0;
+        for (long i = 0; i < *literalsCount; i++) {
+          // if lit is already known, reference the known one
+          if (strcmp((*literals)[i], literal) == 0) {
+            isLitPresent = 1;
+            literalRef = i * -1;
+            break;
+          }
+        }
 
-        (*tokens)[*tokensCount] = -(*literalsCount); // literal's ref
-        (*literalsCount)++;
+        if (!isLitPresent) {
+          literalRef = *literalsCount * -1;
+          (*literals)[*literalsCount] = literal;
+          (*literalsCount)++;
+        }
+
+        (*tokens)[*tokensCount] = literalRef;
         (*tokensCount)++;
       } else if (tokenBuf[0] != TOK_BLANK) {
         (*tokens)[*tokensCount] = tokenBuf[0];

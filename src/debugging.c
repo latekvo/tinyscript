@@ -6,8 +6,26 @@
 #include "conversions.h"
 #include "debugging.h"
 
+typedef struct {
+  Command command;
+  char *name;
+} DbgCommandName;
+
+DbgCommandName commandNameTable[] = {
+    {CMD_ASSIGN, "ASSIGN"},
+    {CMD_CALL, "CALL"},
+    {CMD_RETURN, "RETURN"},
+    {CMD_DEFINE, "DEFINE"},
+    {CMD_CODE_BLOCK, "CODE_BLOCK"},
+    {CMD_GET, "GET"},
+    {CMD_SET, "SET"},
+    {CMD_ADD, "ADD"},
+    {CMD_SUB, "SUB"},
+    {CMD_MULT, "MULT"},
+    {CMD_DIV, "DIV"},
+};
+
 char *tokenToText(ssize_t token) {
-  // debug utility
   for (int i = 0; i < tokenConversionsCount; i++) {
     if (tokenConversions[i].token == token) {
       if (strcmp(tokenConversions[i].match, "\n") == 0) {
@@ -45,7 +63,7 @@ void prettyPrintTokens(ssize_t *tokens, size_t count, short isSlice) {
     }
 
     if (token <= 0) {
-      printf("LITERAL<%zu, %s, %s>", tokens[i], "type_unk", "name_unk");
+      printf("LITERAL<%zi, %s, %s>", tokens[i], "type_unk", "name_unk");
     } else {
       char *txt = tokenToText(token);
       printf("%s", txt);
@@ -59,9 +77,19 @@ void prettyPrintTokens(ssize_t *tokens, size_t count, short isSlice) {
   }
 }
 
+char *cmdToText(Command command) {
+  for (int i = 0; i < tokenConversionsCount; i++) {
+    if (commandNameTable[i].command == command) {
+      return commandNameTable[i].name;
+    }
+  }
+
+  return "ERR_UNKNOWN";
+}
+
 void _prettyPrintAst(SyntaxNode *node, char **literals, size_t nesting) {
   _indent(nesting);
-  printf("- command %u\n", node->command);
+  printf("- command %s\n", cmdToText(node->command));
   for (size_t i = 0; i < node->rhsCount; i++) {
     if (node->rhsNodes[i].type == RHS_TYPE_SYNTAX_NODE) {
       _prettyPrintAst(node->rhsNodes[i].value.rhsNode, literals, nesting + 1);
