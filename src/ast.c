@@ -92,9 +92,10 @@ SyntaxNode *constructSyntaxTree(ssize_t *tokens, SyntaxNode *lhs) {
 
   // function-body parsing is not recursive
   // nested statements ARE recursive with constructSyntaxTree
-  for (size_t tokensOffset = 0; tokens[tokensOffset] != TOK_END;
-       tokensOffset += 1) {
+  for (size_t tokensOffset = 0; tokens[tokensOffset] != TOK_END;) {
     size_t *args = NULL;
+
+    // FIXME: large amount of logic is duplicated here and within this function
     ssize_t ruleIdx = findMatchingPatternIndex(tokens + tokensOffset);
 
     if (ruleIdx < 0) {
@@ -102,6 +103,7 @@ SyntaxNode *constructSyntaxTree(ssize_t *tokens, SyntaxNode *lhs) {
     }
 
     CommandRuleset *ruleset = &commandRulesets[ruleIdx];
+
     if (ruleset->type == CMD_TYPE_RHS_PAIR) {
       // operator type RHS
       printf("Construct AST: Match found: RHS PAIR\n");
@@ -110,22 +112,75 @@ SyntaxNode *constructSyntaxTree(ssize_t *tokens, SyntaxNode *lhs) {
       rhs.value.rhsNode = malloc(sizeof(SyntaxNode));
       rhs.value.rhsNode->lhs = lhs;
       rhs.value.rhsNode->command = ruleset->command;
-      pushRhsNode(lhs, rhs);
-    }
 
-    if (ruleset->type == CMD_TYPE_CALL) {
+      size_t leftLen = getRhsGroupLength(tokens, tokensOffset);
+
+      // fixme: removal of all spaces removes the need for this loop
+      // 				^ all spaces can be safely removed AFAIK
+      size_t lenToRight = leftLen;
+      for (;; lenToRight++) {
+        ssize_t token = tokens[tokensOffset + lenToRight];
+        if (token != TOK_SPACE && token != ruleset->tokenSeries[0]) {
+          break;
+        }
+      }
+
+      size_t rightLen =
+          getRhsGroupLength(tokens, tokensOffset + lenToRight + leftLen);
+
+      size_t leftStartIdx = tokensOffset;
+      size_t rightStartIdx = tokensOffset;
+
+      RHSNode left;
+      RHSNode right;
+
+      if (leftLen == 1) {
+        // has to be literal or variable
+        // todo: use CMD_GET if variable
+        left.type = RHS_TYPE_LITERAL_REF;
+        left.value.rhsLiteralRef = tokens[tokensOffset];
+      } else {
+        // +1, as we're skipping past parenthesis wrapping
+        ssize_t *shiftedTokens = tokens + leftStartIdx + 1;
+        left.type = RHS_TYPE_SYNTAX_NODE;
+        left.value.rhsNode =
+            constructSyntaxTree(shiftedTokens, rhs.value.rhsNode);
+      }
+
+      if (rightLen == 1) {
+        // has to be literal or variable
+        // todo: use CMD_GET if variable
+        right.type = RHS_TYPE_LITERAL_REF;
+        right.value.rhsLiteralRef = tokens[tokensOffset];
+      } else {
+        ssize_t *shiftedTokens = tokens + rightStartIdx + 1;
+        right.type = RHS_TYPE_SYNTAX_NODE;
+        right.value.rhsNode =
+            constructSyntaxTree(shiftedTokens, rhs.value.rhsNode);
+      }
+
+      pushRhsNode(rhs.value.rhsNode, left);
+      pushRhsNode(rhs.value.rhsNode, right);
+      pushRhsNode(lhs, rhs);
+      tokensOffset += leftLen + lenToRight + rightLen;
+    } else if (ruleset->type == CMD_TYPE_CALL) {
       printf("Construct AST: Match found: CALL\n");
       // eval including member access parent class
-    }
-
-    if (ruleset->type == CMD_TYPE_CUSTOM) {
-      printf("Construct AST: Match found: DEFINED\n");
+      printf("Construct AST: Unimplemented - function calling. Skipping.\n");
+      tokensOffset += 1;
+    } else if (ruleset->type == CMD_TYPE_CUSTOM) {
+      printf("Construct AST: Match found: CUSTOM\n");
       for (size_t tokIdx = 0; tokIdx < CMD_TOK_BUF_SIZE; tokIdx++) {
         // Consume ; as part of END
         if (ruleset->tokenSeries[tokIdx] == TOK_LITERAL && tokens[tokIdx] > 0) {
           break;
         }
       }
+      printf("Construct AST: Unimplemented - custom. Skipping.\n");
+      tokensOffset += 1;
+    } else {
+      printf("Construct AST: Warning: No valid pattern found. Skipping.\n");
+      tokensOffset += 1;
     }
   }
   return lhs;

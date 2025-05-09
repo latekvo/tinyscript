@@ -1,12 +1,14 @@
 #pragma once
 
 typedef enum {
-  // internal util, do not treat as token
-  TOK_LITERAL = 0,
-  TOK_LHS_GROUP, // ruleset matching: LHS
-  TOK_RHS_GROUP, // ruleset matching: RHS
-  TOK_END,       // ruleset custom series definition & iter terminator
+  // internal tokens:
+  TOK_LITERAL = 0, // TOK_LITERAL must be first
+  TOK_LHS_GROUP,   // ruleset matching: LHS
+  TOK_RHS_GROUP,   // ruleset matching: RHS
+  TOK_END,         // ruleset custom series definition & iter terminator
   TOK_BLANK,
+
+  // userspace tokens:
 
   // separators
   TOK_EOL,   // \n
@@ -134,3 +136,4 @@ typedef enum {
   TOK_PACKAGE,
   TOK_EXPORT,
 } Token;
+

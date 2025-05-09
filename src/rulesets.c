@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/types.h>
 
 #include "rulesets.h"
@@ -9,7 +10,8 @@
 // these should rewritten be simplified
 CommandRuleset commandRulesets[] = {
     {
-        // =
+        // = w/ const
+        // todo: change to cmd. define
         CMD_ASSIGN,
         CMD_TYPE_CUSTOM,
         {
@@ -21,14 +23,15 @@ CommandRuleset commandRulesets[] = {
         },
     },
     {
-        // =
+        // = w/ const
+        // todo: change to cmd. define
         CMD_ASSIGN,
         CMD_TYPE_CUSTOM,
         {
             TOK_LET,
-            TOK_LITERAL,
+            TOK_LHS_GROUP,
             TOK_ASSIGN,
-            TOK_LITERAL,
+            TOK_RHS_GROUP,
             TOK_END,
         },
     },
@@ -40,6 +43,7 @@ CommandRuleset commandRulesets[] = {
             TOK_LHS_GROUP,
             TOK_ASSIGN,
             TOK_RHS_GROUP,
+            TOK_END,
         },
     },
     {
@@ -90,12 +94,38 @@ CommandRuleset commandRulesets[] = {
         CMD_TYPE_INLINE_SETTER,
         {TOK_DIV},
     },
+    {
+        // func(args...)
+        CMD_CALL,
+        CMD_TYPE_CUSTOM,
+        {
+            TOK_RHS_GROUP,
+            TOK_L_PN_BRACKET,
+            TOK_RHS_GROUP,
+            TOK_R_PN_BRACKET,
+            TOK_END,
+        },
+    },
 };
 
 size_t commandRulesetsCount = sizeof(commandRulesets) / sizeof(CommandRuleset);
 
+// TODO: is it better to define assignment commands as:
+// - LHS = RHS;
+// or
+// - = RHS;
+// and define
+// - let LHS;
+// as a separete CMD_DEFINE
+// i feel like the latter would be more robust
+// it would simplify handling classes and nested accesses as well
+// new node types will have to be added:
+// - node command (already present)
+// - node literal (already present)
+// - node variable, attributes: isLHS, (i assume isRHS would always be true)
+
 // fixme: mova away from malloc'ing within functions everywhere
-size_t getRhsGroupLength(char *tokens, size_t startOffset) {
+size_t getRhsGroupLength(ssize_t *tokens, size_t startOffset) {
   // TODO: we can extract ALL nested RHSs within a root RHS
   // 			 in one-pass:
   // 			 on '(':
@@ -106,59 +136,113 @@ size_t getRhsGroupLength(char *tokens, size_t startOffset) {
   // TODO: we should integrate the () creation with () extraction,
   // 			 having both as separate steps is mentally simpler,
   // 			 but leads to code and logic duplication and redundancy
+  // TODO: this function is currently ran 2 times over the exact same tokens
+  // 			 both in AST construction and ruleset detection
 
+  // replace depth with a opening_pn_queue and closing_pn_queue,
+  // to support infinite nesting (currently supporting 1 pair of '()')
+
+  size_t nestingDepth = 0;
+
+  // fixme: treat entire "" block as one token - string literal
+
+  // 1. RHS group could be a non-nested literal, starts with anything
+  // 2. RHS group could be a nested literal, starts with (, ends with )
   for (size_t i = startOffset; tokens[i] != TOK_END; i++) {
-    if (tokens[i] == 0) {
+    if (tokens[i] == TOK_L_PN_BRACKET) {
+      nestingDepth++;
+    }
+    if (tokens[i] == TOK_R_PN_BRACKET) {
+      if (nestingDepth == 1) {
+        return i + 1;
+      }
+      nestingDepth--;
+    }
+
+    if (nestingDepth > 0) {
+      // ignore literals when inside () block
+      continue;
+    }
+
+    if (tokens[i] <= 0) {
+      return 1;
     }
   }
   return 3;
 }
 
+// TODO: don't malloc, return pre-allocated full pattern ptr
+void getFullTokenPattern(long *fullPattern, size_t rulesetId) {
+  CommandRuleset *baseRuleset = &commandRulesets[rulesetId];
+  if (baseRuleset->type == CMD_TYPE_CUSTOM) {
+    for (size_t i = 0;; i++) {
+      if (i == CMD_TOK_BUF_SIZE) {
+        printf("Fatal: Missing TOK_END in ruleset %zu. Terminating.\n",
+               rulesetId);
+        exit(1);
+      }
+      fullPattern[i] = baseRuleset->tokenSeries[i];
+      if (baseRuleset->tokenSeries[i] == TOK_END) {
+        break;
+      }
+    }
+  } else if (baseRuleset->type == CMD_TYPE_RHS_PAIR) {
+    // TODO: are parentheses always skipped? are they always present?
+    // TODO: remove LHS in the next version
+    fullPattern[0] = TOK_RHS_GROUP;
+    fullPattern[1] = baseRuleset->tokenSeries[0];
+    fullPattern[2] = TOK_RHS_GROUP;
+  } else if (baseRuleset->type == CMD_TYPE_INLINE_SETTER) {
+    // TODO: are parentheses always skipped? are they always present?
+    // TODO: remove LHS in the next version
+    fullPattern[0] = TOK_LHS_GROUP;
+    fullPattern[1] = baseRuleset->tokenSeries[0];
+    fullPattern[1] = TOK_ASSIGN;
+    fullPattern[2] = TOK_RHS_GROUP;
+  }
+};
+
 ssize_t findMatchingPatternIndex(ssize_t *tokens) {
-  // todo: write a variadic arg tok pattern checker, will be much cleaner
+  // TODO: harden by clearing before every overwrite
+  long *pattern = malloc(sizeof(long) * CMD_TOK_BUF_SIZE);
   for (size_t ruleIdx = 0; ruleIdx < commandRulesetsCount; ruleIdx++) {
     CommandRuleset *ruleset = &commandRulesets[ruleIdx];
-    if (ruleset->type == CMD_TYPE_RHS_PAIR) {
-      ssize_t separator = ruleset->tokenSeries[0];
-      // fixme: match '(anything)' as valid RHS
-    }
+    getFullTokenPattern(pattern, ruleIdx);
 
-    if (ruleset->type == CMD_TYPE_CALL) {
-      if (tokens[0] > 0 || tokens[1] != TOK_L_PN_BRACKET) {
-        continue;
+    for (size_t i = 0;; i++) {
+      if (i == CMD_TOK_BUF_SIZE) {
+        // err should not be possible, caught in getFull[...] if present
+        printf("Fatal: Missing TOK_END in ruleset %zu. Terminating.\n",
+               ruleIdx);
+        exit(1);
+      }
+
+      if (pattern[i] == TOK_END) {
+        // success - found match
+        free(pattern);
+        return ruleIdx;
+      }
+
+      if (pattern[i] == TOK_LHS_GROUP && tokens[i] > 0) {
+        // TODO: lookup if present in variable store
+        // fail - not a LHS value
+        break;
+      }
+
+      if (pattern[i] == TOK_RHS_GROUP && tokens[i] > 0) {
+        // TODO: lookup if present in value or variable store
+        // fail - not a RHS value
+        break;
+      }
+
+      if (pattern[i] != tokens[i]) {
+        // fail - pattern mismatch
+        break;
       }
     }
-
-    if (ruleset->type == CMD_TYPE_CUSTOM) {
-      bool isInvalid = 1;
-      for (size_t tokIdx = 0; tokIdx < CMD_TOK_BUF_SIZE; tokIdx++) {
-        if (ruleset->tokenSeries[tokIdx] == TOK_END) {
-          // todo: handle terminators here, preferably have
-          // 			 a virtual TOK_SEP added during cleaning
-          isInvalid = 0;
-          break;
-        }
-        if (ruleset->tokenSeries[tokIdx] == TOK_LHS_GROUP &&
-            tokens[tokIdx] > 0) {
-          // fixme: check for variables of literals
-          // fixme+: include selected variables into the check
-          break;
-        }
-        if (ruleset->tokenSeries[tokIdx] == TOK_RHS_GROUP &&
-            tokens[tokIdx] > 0) {
-          // fixme: check for () instead of literals
-          break;
-        }
-      }
-      if (isInvalid) {
-        continue;
-      }
-    }
-
-    // return first rule that is valid (non-violated)
-    return ruleIdx;
   }
-  printf("Construct AST: Error: Couldn't find any matching rules.");
+  printf("Construct AST: Error: Couldn't find any matching rules.\n");
+  free(pattern);
   return -1;
 }
 

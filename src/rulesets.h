@@ -39,4 +39,6 @@ typedef struct {
 } CommandRuleset;
 
 extern CommandRuleset commandRulesets[];
+
+size_t getRhsGroupLength(ssize_t *tokens, size_t startOffset);
 ssize_t findMatchingPatternIndex(ssize_t *tokens);
