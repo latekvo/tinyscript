@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
+#include "debugging.h"
 #include "rulesets.h"
 
 // fixme: both the definition of CommandRuleset,
@@ -210,6 +211,8 @@ ssize_t findMatchingPatternIndex(ssize_t *tokens) {
     getFullTokenPattern(pattern, ruleIdx);
 
     for (size_t i = 0;; i++) {
+      printf("Dbg: RULE (%zu), PATTERN (%s), FOUND (%s)\n", ruleIdx,
+             tokenToText(pattern[i]), tokenToText(tokens[i]));
       if (i == CMD_TOK_BUF_SIZE) {
         // err should not be possible, caught in getFull[...] if present
         printf("Fatal: Missing TOK_END in ruleset %zu. Terminating.\n",
@@ -223,25 +226,24 @@ ssize_t findMatchingPatternIndex(ssize_t *tokens) {
         return ruleIdx;
       }
 
-      if (pattern[i] == TOK_LHS_GROUP && tokens[i] > 0) {
+      if (pattern[i] == TOK_LHS_GROUP) {
         // TODO: lookup if present in variable store
         // fail - not a LHS value
-        break;
-      }
-
-      if (pattern[i] == TOK_RHS_GROUP && tokens[i] > 0) {
+        if (tokens[i] > 0) {
+          break;
+        }
+      } else if (pattern[i] == TOK_RHS_GROUP && tokens[i] > 0) {
         // TODO: lookup if present in value or variable store
         // fail - not a RHS value
-        break;
-      }
-
-      if (pattern[i] != tokens[i]) {
+        if (tokens[i] > 0) {
+          break;
+        }
+      } else if (pattern[i] != tokens[i]) {
         // fail - pattern mismatch
         break;
       }
     }
   }
-  printf("Construct AST: Error: Couldn't find any matching rules.\n");
   free(pattern);
   return -1;
 }

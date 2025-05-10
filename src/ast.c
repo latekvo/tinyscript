@@ -99,7 +99,8 @@ SyntaxNode *constructSyntaxTree(ssize_t *tokens, SyntaxNode *lhs) {
     ssize_t ruleIdx = findMatchingPatternIndex(tokens + tokensOffset);
 
     if (ruleIdx < 0) {
-      printf("Construct AST: Invalid syntax: Rule not found\n");
+      printf("Fatal: Invalid syntax: Rule not found\n");
+      exit(0);
     }
 
     CommandRuleset *ruleset = &commandRulesets[ruleIdx];
