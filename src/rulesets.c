@@ -24,7 +24,7 @@ CommandRuleset commandRulesets[] = {
         },
     },
     {
-        // = w/ const
+        // = w/ let
         // todo: change to cmd. define
         CMD_ASSIGN,
         CMD_TYPE_CUSTOM,
@@ -126,6 +126,11 @@ size_t commandRulesetsCount = sizeof(commandRulesets) / sizeof(CommandRuleset);
 // - node variable, attributes: isLHS, (i assume isRHS would always be true)
 
 // fixme: mova away from malloc'ing within functions everywhere
+
+/**
+ *
+ * Returns: length of the RHS group.
+ */
 size_t getRhsGroupLength(ssize_t *tokens, size_t startOffset) {
   // TODO: we can extract ALL nested RHSs within a root RHS
   // 			 in one-pass:
@@ -155,6 +160,7 @@ size_t getRhsGroupLength(ssize_t *tokens, size_t startOffset) {
     }
     if (tokens[i] == TOK_R_PN_BRACKET) {
       if (nestingDepth == 1) {
+        // opening bracked accounted for in 'i', +1 for closing bracket
         return i + 1;
       }
       nestingDepth--;
@@ -198,8 +204,8 @@ void getFullTokenPattern(long *fullPattern, size_t rulesetId) {
     // TODO: remove LHS in the next version
     fullPattern[0] = TOK_LHS_GROUP;
     fullPattern[1] = baseRuleset->tokenSeries[0];
-    fullPattern[1] = TOK_ASSIGN;
-    fullPattern[2] = TOK_RHS_GROUP;
+    fullPattern[2] = TOK_ASSIGN;
+    fullPattern[3] = TOK_RHS_GROUP;
   }
 };
 
@@ -210,15 +216,17 @@ ssize_t findMatchingPatternIndex(ssize_t *tokens) {
     CommandRuleset *ruleset = &commandRulesets[ruleIdx];
     getFullTokenPattern(pattern, ruleIdx);
 
-    for (size_t i = 0;; i++) {
-      printf("Dbg: RULE (%zu), PATTERN (%s), FOUND (%s)\n", ruleIdx,
-             tokenToText(pattern[i]), tokenToText(tokens[i]));
-      if (i == CMD_TOK_BUF_SIZE) {
+    size_t tokenCursor = 0; // possibly ahead of "i"
+    for (size_t i = 0;; i++, tokenCursor++) {
+      if (i >= CMD_TOK_BUF_SIZE) {
         // err should not be possible, caught in getFull[...] if present
         printf("Fatal: Missing TOK_END in ruleset %zu. Terminating.\n",
                ruleIdx);
         exit(1);
       }
+
+      printf("Dbg: RULE (%zu), PATTERN (%s), FOUND (%s)\n", ruleIdx,
+             tokenToText(pattern[i]), tokenToText(tokens[tokenCursor]));
 
       if (pattern[i] == TOK_END) {
         // success - found match
@@ -229,16 +237,21 @@ ssize_t findMatchingPatternIndex(ssize_t *tokens) {
       if (pattern[i] == TOK_LHS_GROUP) {
         // TODO: lookup if present in variable store
         // fail - not a LHS value
-        if (tokens[i] > 0) {
+        if (tokens[tokenCursor] > 0) {
           break;
         }
-      } else if (pattern[i] == TOK_RHS_GROUP && tokens[i] > 0) {
+      } else if (pattern[i] == TOK_RHS_GROUP) {
         // TODO: lookup if present in value or variable store
-        // fail - not a RHS value
-        if (tokens[i] > 0) {
+        if (tokens[tokenCursor] == TOK_L_PN_BRACKET) {
+          // this function is a simple matcher,
+          // simply skip over "()" block
+          size_t rhsLen = getRhsGroupLength(tokens, tokenCursor);
+          tokenCursor += rhsLen + 1; // moving cursor +1 over the end
+        } else if (tokens[tokenCursor] > 0) {
+          // fail - not a RHS value
           break;
         }
-      } else if (pattern[i] != tokens[i]) {
+      } else if (pattern[i] != tokens[tokenCursor]) {
         // fail - pattern mismatch
         break;
       }
